@@ -193,12 +193,12 @@ for i = 1:n_training_samples
       for j = 2:length(D.seg)
         name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat']);
         
-		% check whether release number is already included in name
-		if ~exist(name,'file')
-		  if contains(D.training_sample{i},'_r')
-			name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} '.mat']);
-		  end
-		end
+    % check whether release number is already included in name
+    if ~exist(name,'file')
+      if contains(D.training_sample{i},'_r')
+      name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} '.mat']);
+      end
+    end
         load(name);
       end
       Y_train2   = [Y_train2; single(Y)]; clear Y
@@ -308,7 +308,7 @@ if D.verbose
   fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(age_train),std(age_train),sum(male_train),length(age_train)-sum(male_train));
 end
 
-%--- KERNEL -> RVR
+% KERNEL -> RVR
 s = relvm_r(D.kernel);
 
 % get rid of excessive output
@@ -320,18 +320,18 @@ if isfield(s,'beta0') && (numel(age_train) > 1000)
   s.beta0 = 0.1;
 end
 
-%----- ensure range 0..1
-mn = min([Y_train(:); D.Y_test(:)]);
-mx = max([Y_train(:); D.Y_test(:)]);
-Y_train  = ((Y_train-mn)/(mx-mn));
-D.Y_test = ((D.Y_test-mn)/(mx-mn));
+% estimate range using training data only and scale to 0..1
+mn = min(Y_train(:));
+mx = max(Y_train(:));
+Y_train  = (Y_train-mn)/(mx-mn);
+D.Y_test = (D.Y_test-mn)/(mx-mn);
 
 % size of training and test sample
 n_train = size(Y_train, 1);
 n_test  = size(D.Y_test, 1);
 
-%---PCA---
-if D.PCA
+% PCA using training data only
+if D.PCA 
   % if defined limit number of PCA components
   if D.PCA > 1
     n_PCA = D.PCA;
@@ -349,8 +349,8 @@ if D.PCA
   mapped_test  = double(mapped_test);
   
   % ensure range 0..1
-  mn = min([mapped_train(:);mapped_test(:)]);
-  mx = max([mapped_train(:);mapped_test(:)]);
+  mn = min(mapped_train(:));
+  mx = max(mapped_train(:));
   mapped_train = (mapped_train - mn)/(mx - mn);
   mapped_test  = (mapped_test - mn)/(mx - mn);
 else
@@ -383,7 +383,7 @@ end
 d  = data(mapped_train, age_train);
 t1 = data(mapped_test, D.age_test);
 
-%---RVR---
+% RVR
 % I use a modified rvr_training because the original @relvm_r/training
 % function has issues with stability and I have added an additional break
 try
