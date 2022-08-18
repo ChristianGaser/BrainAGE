@@ -71,7 +71,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_ui(D)
 %                     1 use GLM estimation to estimate model weights to minimize MAE
 %                     2 simply use median to weight different models (as default)
 %                     3 use GLM estimation to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
-%                     4 use RVR to combine models (EXPERIMENTAL!)
+%                     4 use RVR to combine models (EXPERIMENTAL!, only works with k_fold validation)
 % D.contrast        - define contrast to maximize group differences (use only if D.weighting=3) (e.g. [1 -1])
 % D.dir             - directory for databases and code
 % D.spider_dir      - directory of spider
@@ -1057,12 +1057,11 @@ if multiple_BA && ((isfield(D,'run_validation') && ~D.run_validation) || ~isfiel
     figure(23)
     clf
     hold on 
-    indc = size(groupcolor,1)-n_groups;
     for i = 1:n_groups
-      plot(D.age_test(D.ind_groups{i}),D.age_test(D.ind_groups{i})+BA_unsorted_weighted(D.ind_groups{i}),'*','color',groupcolor(i+indc,:))
+      plot(D.age_test(D.ind_groups{i}),D.age_test(D.ind_groups{i})+BA_unsorted_weighted(D.ind_groups{i}),'*','color',groupcolor(i,:))
     end
     line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],...
-      'Color',groupcolor(1+indc,:),'lineWidth',2);
+      'Color',[0 0 0],'lineWidth',2);
     hold off
     title('Data')
     xlabel('Chronological Age [years]')
@@ -1233,7 +1232,7 @@ else
   weighting_method = 2;
 end
 
-if nargin < 5 && weighting_method == 4
+if nargin < 4 && weighting_method == 4
   fprintf('For RVR weighting method you have to define 5 arguments.\n');
   weighting_method = 1;
 end
