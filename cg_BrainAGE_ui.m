@@ -9,7 +9,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_ui(D)
 %         OASIS316  - OASIS
 %         Ship1000  - SHIP (internal use only)
 %     ADNI231Normal - ADNI Normal-sc-1.5T 
-%Long_Australia2611 - PATH study Australia (internal use only)
 %       UKB_x_r1700 - UKB-data sample x with release r1700 
 %
 %     Children data:
@@ -73,6 +72,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_ui(D)
 %                     3 use GLM estimation to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
 %                     4 use RVR to combine models (EXPERIMENTAL!, only works with k_fold validation)
 % D.contrast        - define contrast to maximize group differences (use only if D.weighting=3) (e.g. [1 -1])
+%                     D.contrast can be also a vector which is used to maximize variance between BrainAGE and this parameter.
 % D.dir             - directory for databases and code
 % D.spider_dir      - directory of spider
 % D.verbose         - verbose level (default=1), set to "0" to suppress long outputs
@@ -82,7 +82,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_ui(D)
 % D.define_cov      - optionally define continous parameter that should be used instead of age for more general use 
 %                     of RVR not only limited to BrainAGE
 % D.style           - plot-style: 1: old style with vertical violin-plot; 2: new style with horizontal density plot
-% D.groupcolor      - matrix with (group)-bar-color(s), use jet(numel(data)) or other color functions
+% D.groupcolor      - matrix with (group)-bar-color(s), use jet(numel(data)) or other color functions (nejm by defaukt)
 %
 % Parameter search
 % ---------------
@@ -737,7 +737,7 @@ for i = 1:numel(D.res_array)
         n_groups = numel(D.ind_groups);
         
         if ~isfield(D,'groupcolor')
-          groupcolor = flipud(hsv(max(5,n_groups)));
+          groupcolor = nejm;
         else
           groupcolor = D.groupcolor;
         end
@@ -1498,4 +1498,25 @@ MAE = mean(abs(BrainAGE));
 if MAE0/MAE > 4
   if verbose, fprintf('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n'); end
 end
+
+function C = nejm
+  C = [
+    '#BC3C29'
+    '#0072B5'
+    '#E18727'
+    '#20854E'
+    '#7876B1'
+    '#6F99AD'
+    '#FFDC91'
+    '#EE4C97'
+    '#8C564B'
+    '#BCBD22'
+    '#00A1D5'
+    '#374E55'
+    '#003C67'
+    '#8F7700'
+    '#7F7F7F'    
+    '#353535'    
+  ];
+  C = reshape(sscanf(C(:,2:end)','%2x'),3,[]).'/255;
 
