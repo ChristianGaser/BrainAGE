@@ -1008,7 +1008,8 @@ for i = 1:numel(D.res_array)
                 end
         
               elseif isfield(D,'corr') % estimate correlation for one group
-                [R, P] = corrcoef(BrainAGE(~isnan(D.corr)),D.corr(~isnan(D.corr)))
+                [R, P] = corrcoef(BrainAGE(~isnan(D.corr)),D.corr(~isnan(D.corr)));
+                fprintf('Correlation r=%g (P=%g)\n',R(1,2),P(1,2));
               end
     
             end
@@ -1328,11 +1329,15 @@ case 3   % use GLM estimation to maximize group differences or correlation (EXPE
     ind = [ind; D.ind_groups{i}];
   end
   
-  X = X - mean(X);
+  % 
   if group_diff
+    X = X - mean(X);
     Beta = pinv(Y)*X;
   else
-    Beta = pinv(Y(ind,:))*X;
+    % we have to excluded NaNs for Beta estimation
+    ind_finite = isfinite(X);
+    X(ind_finite) = X(ind_finite) - mean(X(ind_finite));
+    Beta = pinv(Y(ind(ind_finite),:))*X(ind_finite);
   end
   Beta = Beta./sum(Beta);
 

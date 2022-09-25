@@ -155,8 +155,13 @@ if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
   Y_train    = D.Y_test;
   age_train  = D.age_test;
   age        = D.age_test;
-  male       = D.male_test;
-  male_train = D.male_test;
+  if isfield(D,'male_test')
+    male = D.male_test;
+    male_train = D.male_test; 
+  else
+    male = ones(size(age));
+    male_train = ones(size(age)); 
+  end
 else
   load_training_sample = true;
 end
