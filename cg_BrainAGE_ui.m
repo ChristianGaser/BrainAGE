@@ -1138,21 +1138,6 @@ end
 
 % show plot for multiple values if defined
 if multiple_BA && ((isfield(D,'run_validation') && ~D.run_validation) || ~isfield(D,'run_validation'))
-
-  % build testmatrix according to number of groups
-  switch n_groups
-  case {1,2}
-    n_test = 1; test_matrix = [1 2];
-  case 3
-    n_test = 3; test_matrix = [1 2; 1 3; 2 3];
-  case 4
-    n_test = 6; test_matrix = [1 2; 1 3; 1 4; 2 3; 2 4; 3 4];
-  case 5
-    n_test = 10; test_matrix = [1 2; 1 3; 1 4; 1 5; 2 3; 2 4; 2 5; 3 4; 3 5; 4 5];
-  otherwise
-    fprintf('Only comparison of max. 5 groups allowed.');
-    return
-  end
   
   age_array = cell(n_age_range,1);
   for m=1:n_age_range            
@@ -1170,7 +1155,7 @@ if multiple_BA && ((isfield(D,'run_validation') && ~D.run_validation) || ~isfiel
   end
     
   % print BrainAGE of groups
-  if D.verbose & sum(isnan(BA_unsorted)) == 0
+  if D.verbose && all(sum(isnan(BA_unsorted)) == 0)
     fprintf('%20s\t','Group');
     for o = 1:n_groups
       fprintf('%20s\t',deblank(D.name_groups(o,:)));
