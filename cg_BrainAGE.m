@@ -1,23 +1,24 @@
-function [BrainAGE,EstimatedAge] = cg_BrainAGE(D)
+function [BrainAGE,EstimatedAge,D] = cg_BrainAGE(D)
 %
 % D.Y_test          - volume data for estimation
 % D.age_test        - age of each volume 
 % D.training_sample - training sample (e.g. {'IXI547','OASIS316'}
 %     Healthy adults:
-%         IXI547    - IXI-database
-%         IXI410    - IXI-database (1:4:547 removed)
-%         OASIS316  - OASIS
-%         Ship1000  - SHIP
-%     ADNI231Normal - ADNI Normal-sc-1.5T 
-%Long_Australia2611 - PATH study Australia
+%         IXI547     - IXI-database
+%         IXI410     - IXI-database (1:4:547 removed)
+%         OASIS316   - OASIS
+%         OASIS_3381 - OASIS3
+%         Ship1000   - SHIP (internal use only)
+%     ADNI231Normal  - ADNI Normal-sc-1.5T 
+%       UKB_x_r1700  - UKB-data sample x with release r1700 
 %
 %     Children data:
-%         NIH394    - NIH objective 1
-%         NIH876    - NIH release 4.0
-%         NIH755    - NIH release 5.0
+%         NIH394     - NIH objective 1
+%         NIH876     - NIH release 4.0
+%         NIH755     - NIH release 5.0
 %
 %     Children + adults:
-%         fCONN772 - fcon-1000 (8-85 years)
+%         fCONN772  - fcon-1000 (8-85 years)
 %
 % D.kernel          - kernel for rlvm_r approach (default kernel('poly',1))
 % D.seg             - segmentation
@@ -50,10 +51,14 @@ function [BrainAGE,EstimatedAge] = cg_BrainAGE(D)
 % D.verbose         - verbose level (default=1), set to "0" to suppress long outputs
 % D.threshold_std   - all data with a standard deviation > D.threshold_std of mean covariance are excluded
 %                     (after covarying out effects of age)
+% D.eqdist          - options for age and sex equalization between test and train
+% D.eqdist.weight   - vector of size 2 that allows to weight the cost function for age and sex equalization
+% D.eqdist.range    - matrix 2 x 2 which defines the age range and sex range for equalization
+% D.eqdist.tol      - vector of size 2 that defines tolerance between mean value of
+%                     age_test and age_train and male_test and male_train
 %_______________________________________________________________________
 % Christian Gaser
 % $Id: cg_BrainAGE.m 2015-08-28 08:57:46Z gaser $
-
 
 if ~isfield(D,'Y_test')
   error('D.Y_test not defined');
@@ -298,6 +303,45 @@ if ~isinf(D.threshold_std)
   age_train(ind_removed) = [];
   male_train(ind_removed) = [];
   Y_train(ind_removed,:) = [];
+end
+
+% if at least tolerance is defined for age and sex equalization we can select 
+% train data to better match test and train distribution
+if isfield(D,'eqdist') && isfield(D.eqdist,'tol') 
+  
+  n_before = length(age_train);
+  
+  % check whether we already have to estimate assignement or we have
+  % multiple training sample
+  if ~isfield(D.eqdist,'sel') || numel(D.train_array) > 1
+    if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
+      fprintf('Use of eqdist flag is not allowed for k-fold validation\n');
+      return
+    end
+
+    % if not defined use age range from given D.age_range and don't limit sex parameter
+    if ~isfield(D.eqdist,'range'), D.eqdist.range = [D.age_range; 0 1]'; end
+
+    % create sample for age/sex for test as reference and train as source
+    if ~isfield(D,'male_test'), D.male_test = round(rand(size(D.age_test))); end
+    sample_ref = [D.age_test D.male_test];
+    sample_src = [age_train male_train];
+
+    % find assignement using Hungarian method
+    fprintf('Estimate assignement to match distribution of train data to test data\n');
+    [sample_sel, sel] = cg_equalize_distribution(sample_ref, sample_src, D.eqdist);
+
+    % save selection to skip time consuming assignement for next runs
+    D.eqdist.sel = sel;
+  else
+    sel = D.eqdist.sel;
+  end
+  % get age, sex, and Ytrain back
+  age_train  = age_train(sel);
+  male_train = male_train(sel);
+  Y_train = Y_train(sel,:);
+  
+  if D.verbose && (n_before-length(age_train)) > 0, fprintf('%d subjects removed to equalize distribution of age and sex.\n',n_before-length(age_train)); end
 end
 
 D.male_train = male_train;

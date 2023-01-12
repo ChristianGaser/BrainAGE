@@ -40,7 +40,7 @@ if training_sample < 0 && isempty(additional_samples)
 end
 
 if training_sample >= 0
-  load(['/Volumes/UltraMax/IXI-database/classification/' smooth seg(1,:) '_' res 'mm_IXI547' relnumber '.mat'])
+  load(['/Volumes/UltraMax/IXI-database/BrainAGE_core/' smooth seg(1,:) '_' res 'mm_IXI547' relnumber '.mat'])
 
   n = length(age);
   [i,ind] = sort(age);
