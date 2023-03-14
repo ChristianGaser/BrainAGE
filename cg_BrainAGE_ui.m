@@ -801,14 +801,14 @@ for i = 1:numel(D.res_array)
             if calc_LI
               D.hemi = 'lh';
               if isfield(D,'eqdist')
-                [BrainAGE_lh, tmp, D] = cg_BrainAGE(D);
+                [BrainAGE_lh, ~, D] = cg_BrainAGE(D);
               else
                 BrainAGE_lh = cg_BrainAGE(D);
               end
 
               D.hemi = 'rh';
               if isfield(D,'eqdist')
-                [BrainAGE_rh, tmp, D] = cg_BrainAGE(D);
+                [BrainAGE_rh, ~, D] = cg_BrainAGE(D);
               else
                 BrainAGE_rh = cg_BrainAGE(D);
               end
@@ -816,7 +816,7 @@ for i = 1:numel(D.res_array)
               BrainAGE = (BrainAGE_lh - BrainAGE_rh)./(BrainAGE_lh + BrainAGE_rh);
             else
               if isfield(D,'eqdist')
-                [BrainAGE, tmp, D] = cg_BrainAGE(D);
+                [BrainAGE, ~, D] = cg_BrainAGE(D);
               else
                 BrainAGE = cg_BrainAGE(D);
               end
@@ -952,26 +952,28 @@ for i = 1:numel(D.res_array)
   
             end
   
-            if calc_LI
-              % limit y-axis for LI, because there might be huge values sometimes
-              if style == 1
-                ylim([-5 5]);
-                ylabel('Lateralization index of BrainAGE');
+            if D.verbose > 1
+              if calc_LI
+                % limit y-axis for LI, because there might be huge values sometimes
+                if style == 1
+                  ylim([-5 5]);
+                  ylabel('Lateralization index of BrainAGE');
+                else
+                  xlim([-5 5]);
+                  xlabel('Lateralization index of BrainAGE');
+                end
+                if D.verbose, fprintf('Lateralization index of BrainAGE:\n'); end
               else
-                xlim([-5 5]);
-                xlabel('Lateralization index of BrainAGE');
+                if style == 1
+                  ylabel('BrainAGE [years]');
+                else
+                  xlabel('BrainAGE [years]');
+                end
+                if D.verbose, fprintf('BrainAGE [years]:\n'); end
               end
-              if D.verbose, fprintf('Lateralization index of BrainAGE:\n'); end
-            else
-              if style == 1
-                ylabel('BrainAGE [years]');
-              else
-                xlabel('BrainAGE [years]');
-              end
-              if D.verbose, fprintf('BrainAGE [years]:\n'); end
+              set(gca,'FontSize',20);
             end
-        
-            set(gca,'FontSize',20);
+            
             % print BrainAGE of groups
             if D.verbose
               fprintf('%20s\t','Group');
