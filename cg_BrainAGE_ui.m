@@ -69,6 +69,9 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_ui(D)
 %                     The additional entries (a multiple of k-1) that result from that approach (by factor k-1) are finally averaged.
 % D.k_fold_TPs      - definition of time points for k-fold validation to ensure that multiple time points of one subject are not mixed 
 %                     between test and training data (only necessary to define for longitudinal data and k-fold validation)
+% D.k_fold_reps     - Number of repeated k-fold cross-validation
+% D.k_fold_rand     - As default the age values for the training sample is sorted and every k-th data is selected for training to minimize age 
+%                     differences between training and test data. With k_fold_rand you can set the seed for the random number generator.
 % D.weighting       - weighting of different models
 %                     0 use model with lowest MAE
 %                     1 use GLM estimation to estimate model weights to minimize MAE
@@ -222,6 +225,15 @@ end
 % fill the missing field if neccessary
 if ~isfield(D,'data')
   D.data = D.train_array{1};
+end
+
+% set default for k_fold_reps 
+if ~isfield(D,'k_fold_reps')
+  D.k_fold_reps = 1;
+end
+
+if isfield(D,'k_fold_rand') && D.k_fold_reps > 1
+  error('D.k_fold_rand cannot be used together with D.k_fold_reps because repeated k-fold would always use the same random numbers without variations.');
 end
 
 if iscell(D.data)
@@ -405,7 +417,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
     end
 
     % sort only data for TP1
-    [~, ind_age] = sort(age(find(D.k_fold_TPs==1)));
+    [~, ind_age] = sort(age(D.k_fold_TPs==1));
     
     if offset_TPs == 1
       ind_age = ind_age * n_TPs - (n_TPs-1);
@@ -417,62 +429,78 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   else
     [~, ind_age] = sort(age);
   end
+      
+  for rep = 1:D.k_fold_reps
+    
+    % control random number generation to get always the same seeds
+    if isfield(D,'k_fold_rand')
+      rng(D.k_fold_rand)
+      ind_age = randperm(numel(age))';
+    end
+    
+    % use random indexing of age for repeated k-fold corss-validation
+    if D.k_fold_reps > 1 && ~isfield(D,'k_fold_rand')
+      rng(rep)
+      ind_age = randperm(numel(age))';
+    end
   
-  for j=1:D.k_fold
-    % indicate that validation is running and will not be called in nested loops
-    D.run_validation = j;
+    for j=1:D.k_fold
+      % indicate that validation is running and will not be called in nested loops
+      D.run_validation = j;
+      D.run_repetition = rep;
 
-    ind_fold0 = j:D.k_fold:D.n_data;
-    
-    % try to use similar age distribution between folds
-    % by using sorted age index
-    ind_test = ind_age(ind_fold0)';
- 
-    % build training sample using remaining subjects
-    ind_train = ind_age';
-    ind_train(ind_fold0) = [];
-    
-    % Common approach for k-fold is to divide the sample into k parts and to use the
-    % larger part (n-n/k) for training and the remaining part (n/k) for testing.
-    % For huge data sets such as UKB, the training data are getting too large and we 
-    % switch the selection: we now use the smaller part (n/k) for training and the
-    % larger part (n-n/k) for testing)
-    if inverse_k_fold
-      tmp_train = ind_train;
-      ind_train = ind_test;
-      ind_test  = tmp_train;
-    end
+      ind_fold0 = j:D.k_fold:D.n_data;
 
-    % I know this should never happen, but be absolutely sure we check
-    % whether there is some overlap between training and test data
-    n_overlaps = sum(ismember(ind_train,ind_test));
-    if n_overlaps
-      fprintf('WARNING: There is an overlap of %d subjects between training and test data.\n',n_overlaps)
-    end
-    
-    % build indices for training and test
-    ind_train_array{j} = ind_train;
-    ind_test_array{j}  = ind_test;
-    
-    % collect age and indces in the order w.r.t. the folding
-    age_all       = [age_all; age(ind_test)];
-    ind_all       = [ind_all ind_test];
-    
-    % prepare cg_BrainAGE_ui parameters
-    D.ind_groups  = {ind_test};
-    D.ind_adjust  = ind_test;
-    D.ind_train   = ind_train;
+      % try to use similar age distribution between folds
+      % by using sorted age index
+      ind_test = ind_age(ind_fold0)';
 
-    % call nested loop
-    [BA_fold_all, ~, ~, D] = cg_BrainAGE_ui(D);
-    
-    if j == 1
-      BA_all = zeros(D.n_data,D.k_fold,size(BA_fold_all,2));
+      % build training sample using remaining subjects
+      ind_train = ind_age';
+      ind_train(ind_fold0) = [];
+
+      % Common approach for k-fold is to divide the sample into k parts and to use the
+      % larger part (n-n/k) for training and the remaining part (n/k) for testing.
+      % For huge data sets such as UKB, the training data are getting too large and we 
+      % switch the selection: we now use the smaller part (n/k) for training and the
+      % larger part (n-n/k) for testing)
+      if inverse_k_fold
+        tmp_train = ind_train;
+        ind_train = ind_test;
+        ind_test  = tmp_train;
+      end
+
+      % I know this should never happen, but be absolutely sure we check
+      % whether there is some overlap between training and test data
+      n_overlaps = sum(ismember(ind_train,ind_test));
+      if n_overlaps
+        fprintf('WARNING: There is an overlap of %d subjects between training and test data.\n',n_overlaps)
+      end
+
+      % build indices for training and test
+      ind_train_array{j} = ind_train;
+      ind_test_array{j}  = ind_test;
+
+      % collect age and indces in the order w.r.t. the folding
+      age_all       = [age_all; age(ind_test)];
+      ind_all       = [ind_all ind_test];
+
+      % prepare cg_BrainAGE_ui parameters
+      D.ind_groups  = {ind_test};
+      D.ind_adjust  = ind_test;
+      D.ind_train   = ind_train;
+
+      % call nested loop
+      [BA_fold_all, ~, ~, D] = cg_BrainAGE_ui(D);
+
+      if j == 1 && rep == 1
+        BA_all = zeros(D.n_data,D.k_fold,D.k_fold_reps,size(BA_fold_all,2));
+      end
+
+      % we keep entries for each loop because there might be some overlapping
+      % entries if inverse_k_fold is used
+      BA_all(ind_test,j,rep,:) = BA_fold_all;
     end
-    
-    % we keep entries for each loop because there might be some overlapping
-    % entries if inverse_k_fold is used
-    BA_all(ind_test,j,:) = BA_fold_all;
   end
   
   % we have to estimate the mean by using the sum and dividing by the
@@ -485,6 +513,11 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
     else
       fprintf('There are %d-%d overlapping entries that were averaged.\n',max(n_entries),max(n_entries)); 
     end
+  end
+
+  % we use the mean over all repetitions
+  if D.k_fold_reps > 1
+    BA_all = squeeze(mean(BA_all,2));
   end
   
   D.ind_adjust = ind_adjust; % rescue original ind_adjust
@@ -867,10 +900,15 @@ for i = 1:numel(D.res_array)
             end
             
             if isfield(D,'run_validation') && D.run_validation > 0
-              fprintf('fold %d/%d %s %s %s: n=%d corr (testdata): %1.3f, MAE (testdata): %2.3f, RMSE (testdata): %2.3f\n',...
-                 D.run_validation,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust),cc(1,2),MAE,RMSE);
+              if isfield(D,'run_repetition') && D.k_fold_reps > 1
+                fprintf('repetition %02d/%02d fold %02d/%02d %s %s %s | test data: n=%d corr: %1.3f, MAE: %2.3f, RMSE: %2.3f\n',...
+                   D.run_repetition, D.k_fold_reps, D.run_validation,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust),cc(1,2),MAE,RMSE);
+              else
+                fprintf('fold %02d/%02d %s %s %s | test data: n=%d corr: %1.3f, MAE: %2.3f, RMSE: %2.3f\n',...
+                   D.run_validation,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust),cc(1,2),MAE,RMSE);
+              end
             else
-              fprintf('%s %s %s: n=%d corr (testdata): %1.3f, MAE (testdata): %2.3f, RMSE (testdata): %2.3f\n',...
+              fprintf('%s %s %s | test data: n=%d corr: %1.3f, MAE: %2.3f, RMSE: %2.3f\n',...
                  D.res,D.smooth,seg,numel(D.ind_adjust),cc(1,2),MAE,RMSE);
             end
             
