@@ -245,6 +245,8 @@ if isfield(D,'n_fold') && ~isfield(D,'k_fold')
   D.k_fold = D.n_fold;
 end
 
+weighting_str = {'GLM for weighting models to minimize MAE','Median of all models','GLM for weighting models to maximize variance w.r.t. contrast vector', 'RVR for combining models'};
+
 if isfield(D,'define_cov')
   if ~isempty(strfind(D.data,'+'))
     error('D.define_cov cannot be used for multiple training data.');
@@ -557,6 +559,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
         cc = corrcoef(BA_unsorted_weighted0+age,age);
       end
       fprintf('\n===========================================================\n'); 
+      fprintf(weighting_str{D0.weighting}); fprintf('\n');
       if ~isfield(D,'define_cov')
         fprintf('Overall weighted MAE for %d-fold = %g (weighting=%d)\n',D.k_fold,MAE_weighted,D0.weighting);
       end
