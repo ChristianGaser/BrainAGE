@@ -67,6 +67,12 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 % D.k_fold_reps     - Number of repeated k-fold cross-validation
 % D.k_fold_rand     - As default the age values for the training sample is sorted and every k-th data is selected for training to minimize age 
 %                     differences between training and test data. With k_fold_rand you can set the seed for the random number generator.
+% D.p_dropout       - Dropout probability to randomly exclude voxels/data points to implement an uncertainty-aware approach using a 
+%                     Monte-Carlo Dropout during inference. That means that during testing, voxels are randomly dropped out according 
+%                     to the dropout probabilities. This process is repeated multiple times, and each time, the model produces 
+%                     a different output. By averaging these outputs, we can obtain a more robust prediction and estimate the model's 
+%                     uncertainty in its predictions. A meaningful dropout probability is 0.1, which means that 10% of the data points 
+%                     are excluded. The default is 0.
 % D.ensemble        - ensemble method to combine different models
 %                     0 - Majority voting: use model with lowest MAE
 %                     1 - Weighted GLM average: use GLM estimation to estimate model weights to minimize MAE
@@ -115,9 +121,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 % $Id: cg_BrainAGE_GPR_ui.m 4 2015-08-28 08:57:46Z gaser $
 
 global min_hyperparam
-
-%addpath(fullfile(fileparts(mfilename('fullpath')),'gpml-v4.2'))
-%gp_startup
 
 if ~isfield(D,'trend_degree')
   D.trend_degree = 2;
@@ -209,6 +212,11 @@ end
 
 if isfield(D,'k_fold_rand') && D.k_fold_reps > 1
   error('D.k_fold_rand cannot be used together with D.k_fold_reps because repeated k-fold would always use the same random numbers without variations.');
+end
+
+% set default for droput probability 
+if ~isfield(D,'p_dropout')
+  D.p_dropout = 0;
 end
 
 if iscell(D.data)
@@ -405,7 +413,12 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
     
     % control random number generation to get always the same seeds
     if isfield(D,'k_fold_rand')
-      rng(D.k_fold_rand)
+      if exist('rng','file') == 2
+        rng('default')
+        rng(D.k_fold_rand)
+      else
+        rand('state',D.k_fold_rand);
+      end
       ind_age = randperm(numel(age))';
     end
     
