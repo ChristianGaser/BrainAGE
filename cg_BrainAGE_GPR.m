@@ -1,4 +1,4 @@
-function [BrainAGE,EstimatedAge,D,Var_PredictedAge] = cg_BrainAGE(D,minimize_hyperparam)
+function [BrainAGE,PredictedAge,D] = cg_BrainAGE_GPR(D,minimize_hyperparam)
 %
 % D.Y_test          - volume data for estimation
 % D.age_test        - age of each volume 
@@ -55,7 +55,6 @@ function [BrainAGE,EstimatedAge,D,Var_PredictedAge] = cg_BrainAGE(D,minimize_hyp
 %                     age_test and age_train and male_test and male_train
 %_______________________________________________________________________
 % Christian Gaser
-% $Id: cg_BrainAGE.m 2015-08-28 08:57:46Z gaser $
 
 if ~isfield(D,'Y_test')
   error('D.Y_test not defined');
@@ -81,20 +80,6 @@ else
   else
     minimize_hyperparam = false;
   end
-end
-
-% Set the mean function, covariance function and likelihood function
-% Take meanConst, covRQiso and likGauss as default
-if ~isfield(D,'meanfunc')
-  D.meanfunc = @meanConst;
-end
-
-if ~isfield(D,'covfunc')
-  D.covfunc = @covLIN;
-end
-
-if ~isfield(D,'likfunc')
-  D.likfunc = @likGauss;
 end
 
 if ~isfield(D,'PCA_method')
@@ -185,7 +170,7 @@ for i = 1:n_training_samples
       end
     end
     
-    if D.verbose > 1, fprintf('cg_BrainAGE: load %s\n',name); end
+    if D.verbose > 1, fprintf('cg_BrainAGE_GPR: load %s\n',name); end
     load(name);
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
@@ -395,14 +380,12 @@ else
 end
 
 if minimize_hyperparam
-  hyperparam = minimize(D.hyperparam, @gp, -100, @infGaussLik, D.meanfunc, D.covfunc, D.likfunc, mapped_train, age_train);
-  BrainAGE = hyperparam;
+  error('Not implemented');
   return
 end
 
 % Regression using GPR
-% yfit is the predicted mean, and ys is the predicted variance
-[PredictedAge, Var_PredictedAge] = gp(D.hyperparam, @infGaussLik, D.meanfunc, D.covfunc, D.likfunc, mapped_train, age_train, mapped_test);
+PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, D.hyperparam.mean, D.hyperparam.lik);
 
 BrainAGE = PredictedAge-D.age_test;
 
@@ -415,7 +398,6 @@ if ~isempty(D.nuisance)
 
   % and remove effects
   BrainAGE = BrainAGE - G*Beta;
-  EstimatedAge = EstimatedAge - G*Beta;
+  PredictedAge = PredictedAge - G*Beta;
 end
 
-return

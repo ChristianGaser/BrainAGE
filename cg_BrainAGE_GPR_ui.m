@@ -62,10 +62,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 % D.k_fold          - k-fold validation if training and test sample are the same or only one is defined (10-fold as default)
 %                     Common approach for k-fold is to divide the sample into k parts and to use the
 %                     larger part (n-n/k) for training and the remaining part (n/k) for testing.
-%                     For huge data sets such as UKB, the training data are getting too large and we 
-%                     switch the selection: we now use the smaller part (n/k) for training and the
-%                     larger part (n-n/k) for testing) by simply defining a negative value for k_fold
-%                     The additional entries (a multiple of k-1) that result from that approach (by factor k-1) are finally averaged.
 % D.k_fold_TPs      - definition of time points for k-fold validation to ensure that multiple time points of one subject are not mixed 
 %                     between test and training data (only necessary to define for longitudinal data and k-fold validation)
 % D.k_fold_reps     - Number of repeated k-fold cross-validation
@@ -120,8 +116,8 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 
 global min_hyperparam
 
-addpath(fullfile(fileparts(mfilename('fullpath')),'gpml-v4.2'))
-gp_startup
+%addpath(fullfile(fileparts(mfilename('fullpath')),'gpml-v4.2'))
+%gp_startup
 
 if ~isfield(D,'trend_degree')
   D.trend_degree = 2;
@@ -137,20 +133,6 @@ end
 
 if ~isfield(D,'hyperparam')
   D.hyperparam = struct('mean', 100, 'lik', -1);
-end
-
-% Set the mean function, covariance function and likelihood function
-% Take meanConst, covRQiso and likGauss as default
-if ~isfield(D,'meanfunc')
-  D.meanfunc = @meanConst;
-end
-
-if ~isfield(D,'covfunc')
-  D.covfunc = @covLIN;
-end
-
-if ~isfield(D,'likfunc')
-  D.likfunc = @likGauss;
 end
 
 if ~isfield(D,'minimize_hyperparam')
@@ -373,13 +355,6 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   age_all  = [];
   BA_all   = [];
     
-  if D.k_fold < 1
-    D.k_fold = -D.k_fold;
-    inverse_k_fold = 1;
-  else
-    inverse_k_fold = 0;
-  end
-
   % ensure that this field is always defined and set to ones by default
   if ~isfield(D,'k_fold_TPs')
     D.k_fold_TPs = ones(D.n_data,1);
@@ -434,7 +409,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       ind_age = randperm(numel(age))';
     end
     
-    % use random indexing of age for repeated k-fold corss-validation
+    % use random indexing of age for repeated k-fold cross-validation
     if D.k_fold_reps > 1 && ~isfield(D,'k_fold_rand')
       if exist('rng','file') == 2
         rng('default')
@@ -459,17 +434,6 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       % build training sample using remaining subjects
       ind_train = ind_age';
       ind_train(ind_fold0) = [];
-
-      % Common approach for k-fold is to divide the sample into k parts and to use the
-      % larger part (n-n/k) for training and the remaining part (n/k) for testing.
-      % For huge data sets such as UKB, the training data are getting too large and we 
-      % switch the selection: we now use the smaller part (n/k) for training and the
-      % larger part (n-n/k) for testing)
-      if inverse_k_fold
-        tmp_train = ind_train;
-        ind_train = ind_test;
-        ind_test  = tmp_train;
-      end
 
       % I know this should never happen, but be absolutely sure we check
       % whether there is some overlap between training and test data
@@ -499,7 +463,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       end
 
       % we keep entries for each loop because there might be some overlapping
-      % entries if inverse_k_fold is used
+      % entries
       BA_all(ind_test,j,rep,:) = BA_fold_all;
     end
   end
@@ -1413,8 +1377,6 @@ case 4   % Stacking: use GPR to combine models
         
   PredictedAge_ind = PredictedAge_corrected;
   
-  hyperparam = struct('mean', 5, 'cov', [5 4 -2], 'lik', 1);
-%  hyperparam = minimize(hyperparam, @gp, -100, @infGaussLik, @meanConst, @covRQiso, @likGauss, PredictedAge_ind, age)
   for i=1:numel(ind_test_array)
     
     % get indices for training and test and only include data that are
@@ -1427,9 +1389,8 @@ case 4   % Stacking: use GPR to combine models
     Y_train = PredictedAge_ind(ind_train,:);
     Y_test  = PredictedAge_ind(ind_test,:);
     
-    % Regression using GPR
-    % yfit is the predicted mean, and ys is the predicted variance
-    PredictedAge = gp(hyperparam, @infGaussLik, @meanConst, @covRQiso, @likGauss, Y_train, age(ind_train), Y_test);
+    % multivariate regression using GPR
+    PredictedAge = cg_GPR(Y_train, age(ind_train), Y_test, 10, 1);
     BA_weighted(ind_test) = PredictedAge-age(ind_test);
     
   end
