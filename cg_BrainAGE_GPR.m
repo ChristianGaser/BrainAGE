@@ -1,4 +1,4 @@
-function [BrainAGE,PredictedAge,D] = cg_BrainAGE_GPR(D,minimize_hyperparam)
+function [BrainAGE,PredictedAge,PredictedVar,D] = cg_BrainAGE_GPR(D)
 %
 % D.Y_test          - volume data for estimation
 % D.age_test        - age of each volume 
@@ -25,11 +25,6 @@ function [BrainAGE,PredictedAge,D] = cg_BrainAGE_GPR(D,minimize_hyperparam)
 %                     {'rp1'} use GM
 %                     {'rp2'} use WM
 %                     {'rp1,'rp2'} use both GM+WM
-% D.hemi            - hemisphere for BrainAGE estimation
-%                     'lh' only use left hemisphere
-%                     'rh' only use right hemisphere
-%                     'li' calculate lateralization index LI=(lh-rh)/(lh+rh)
-%                     use both hemispheres as default
 % D.res             - spatial resolution of data
 % D.smooth          - smoothing size
 % D.relnumber       - VBM release (e.g. '_r432')
@@ -75,16 +70,6 @@ end
 
 if ~isfield(D,'hyperparam')
   D.hyperparam = struct('mean', 100, 'lik', -1);
-end
-
-if nargin < 2
-  minimize_hyperparam = false;
-else
-  if strcmpi(minimize_hyperparam,'minimize')
-    minimize_hyperparam = true;
-  else
-    minimize_hyperparam = false;
-  end
 end
 
 if ~isfield(D,'PCA_method')
@@ -189,22 +174,17 @@ for i = 1:n_training_samples
     end
     male_train = [male_train; male];
     
-    if isfield(D,'hemi') && ~isempty(D.hemi)
-      hemi_name = fullfile(D.dir, ['ind_' D.res 'mm.mat']);
-      load(hemi_name);
-    end
-
     % consider additional segmentations
     if length(D.seg) > 1
       for j = 2:length(D.seg)
         name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat']);
         
-    % check whether release number is already included in name
-    if ~exist(name,'file')
-      if contains(D.training_sample{i},'_r')
-      name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} '.mat']);
-      end
-    end
+        % check whether release number is already included in name
+        if ~exist(name,'file')
+          if contains(D.training_sample{i},'_r')
+          name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} '.mat']);
+          end
+        end
         load(name);
       end
       Y_train2   = [Y_train2; single(Y)]; clear Y
@@ -213,25 +193,6 @@ for i = 1:n_training_samples
   end  
 end
   
-if isfield(D,'hemi')
-  if strcmp(D.hemi,'lh')
-    fprintf('Only use left hemisphere for BrainAGE estimation.\n');
-    Y_train  = Y_train(:,ind_left);
-    D.Y_test = D.Y_test(:,ind_left);
-    if length(D.seg) > 1
-      Y_train2 = Y_train2(:,ind_left);    
-    end
-  end
-  if strcmp(D.hemi,'rh')
-    fprintf('Only use right hemisphere for BrainAGE estimation.\n');
-    Y_train = Y_train(:,ind_right);
-    D.Y_test = D.Y_test(:,ind_right);
-    if length(D.seg) > 1
-      Y_train2 = Y_train2(:,ind_right);    
-    end
-  end
-end
-
 if length(D.seg) > 1 && load_training_sample
   Y_train = [Y_train Y_train2]; clear Y_train2
 end
@@ -297,9 +258,9 @@ if ~isinf(D.threshold_std)
   ind_removed = find(mean_cov < threshold_cov);
   if D.verbose, fprintf('%d subjects removed because their mean covariance was deviating more than %g standard deviation from mean.\n',length(ind_removed),D.threshold_std); end
 
-  age_train(ind_removed) = [];
+  age_train(ind_removed)  = [];
   male_train(ind_removed) = [];
-  Y_train(ind_removed,:) = [];
+  Y_train(ind_removed,:)  = [];
 end
 
 % if at least tolerance is defined for age and sex equalization we can select 
@@ -339,9 +300,10 @@ if isfield(D,'eqdist') && isfield(D.eqdist,'tol')
   Y_train = Y_train(sel,:);
   
   if D.verbose && (n_before-length(age_train)) > 0, fprintf('%d subjects removed to equalize distribution of age and sex.\n',n_before-length(age_train)); end
+  
+  D.male_train = male_train;
 end
 
-D.male_train = male_train;
 
 % give warning if age range differs by more than two years
 if (min(age_train)-min(D.age_test) > 2) || (max(D.age_test)>max(age_train) > 2)
@@ -392,17 +354,14 @@ else
   mapped_test  = double(D.Y_test);
 end
 
-if minimize_hyperparam
-  error('Not implemented');
-  return
-end
-
 % Regression using GPR
 
 if D.PCA && D.p_dropout
-  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
+  [PredictedAge, PredictedVar] = cg_GPR(mapped_train, age_train, mapped_test, ...
+          D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
 else
-  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
+  [PredictedAge, PredictedVar] = cg_GPR(mapped_train, age_train, mapped_test, ...
+          D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
 end
 
 BrainAGE = PredictedAge-D.age_test;

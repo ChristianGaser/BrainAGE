@@ -29,11 +29,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 %                     {'rp1+rp2'} use both GM+WM
 % D.res_array       - spatial resolution of data as char or cell (can be a cell array to try different values: {'4','8'})
 % D.smooth_array    - smoothing size as char or cell (can be a cell array to try different values: {'s4','s8'})
-% D.hemi            - hemisphere for BrainAGE estimation
-%                     'lh' only use left hemisphere
-%                     'rh' only use right hemisphere
-%                     'li' calculate lateralization index LI=(lh-rh)/(lh+rh)
-%                     use both hemispheres as default
 % D.relnumber       - VBM release (e.g. '_r432')
 % D.age_range       - age range of training data
 %                     [0 Inf] use all data (default)
@@ -136,10 +131,6 @@ end
 
 if ~isfield(D,'hyperparam')
   D.hyperparam = struct('mean', 100, 'lik', -1);
-end
-
-if ~isfield(D,'minimize_hyperparam')
-  D.minimize_hyperparam = false;
 end
 
 if ~isfield(D,'style')
@@ -798,57 +789,10 @@ for i = 1:numel(D.res_array)
             error('Age range has to be defined by two values (min/max)');
           end
         end
-                      
-        % estimate lateralization index LI
-        calc_LI = 0;
-        if isfield(D,'hemi')
-          if strcmp(D.hemi,'li')
-            calc_LI = 1;
-          end
-        end
-        
-        % minimize hyperparameter and start minimization only for the first
-        % run, otherwise use minimized hyperparameter
-        if D.minimize_hyperparam
-          if (isfield(D,'run_kfold') && D.run_kfold == 1)
-            D0 = D;
-            D.ind_train = 1:numel(D.age_test);
-            D.hyperparam = orig_hyperparam;
-            min_hyperparam{i,j,k,q}  = cg_BrainAGE_GPR(D,'minimize');
-            D0.hyperparam = min_hyperparam{i,j,k,q};
-            D = D0;
-          end
-          if ~isempty(min_hyperparam{i,j,k,q})
-            D.hyperparam = min_hyperparam{i,j,k,q};
-          end
-        end
-        
-        % estimate lateralization index LI
-        if calc_LI
-          D.hemi = 'lh';
-          if isfield(D,'eqdist')
-            [BrainAGE_lh, ~, D] = cg_BrainAGE_GPR(D);
-          else
-            BrainAGE_lh = cg_BrainAGE_GPR(D);
-          end
+                                      
+        [BrainAGE, ~, ~, D] = cg_BrainAGE_GPR(D);
 
-          D.hemi = 'rh';
-          if isfield(D,'eqdist')
-            [BrainAGE_rh, ~, D] = cg_BrainAGE_GPR(D);
-          else
-            BrainAGE_rh = cg_BrainAGE_GPR(D);
-          end
-
-          BrainAGE = (BrainAGE_lh - BrainAGE_rh)./(BrainAGE_lh + BrainAGE_rh);
-        else
-          if isfield(D,'eqdist')
-            [BrainAGE, ~, D] = cg_BrainAGE_GPR(D);
-          else
-            BrainAGE = cg_BrainAGE_GPR(D);
-          end
-        end
-
-        % move on if training failed
+        % move on if training fa~iled
         if all(isnan(BrainAGE)) || std(BrainAGE)==0
           BrainAGE_all = BrainAGE;
           BA_unsorted = [BA_unsorted, BrainAGE];
@@ -984,24 +928,12 @@ for i = 1:numel(D.res_array)
         end
 
         if D.verbose > 1
-          if calc_LI
-            % limit y-axis for LI, because there might be huge values sometimes
-            if style == 1
-              ylim([-5 5]);
-              ylabel('Lateralization index of BrainAGE');
-            else
-              xlim([-5 5]);
-              xlabel('Lateralization index of BrainAGE');
-            end
-            if D.verbose, fprintf('Lateralization index of BrainAGE:\n'); end
+          if style == 1
+            ylabel('BrainAGE [years]');
           else
-            if style == 1
-              ylabel('BrainAGE [years]');
-            else
-              xlabel('BrainAGE [years]');
-            end
-            if D.verbose, fprintf('BrainAGE [years]:\n'); end
+            xlabel('BrainAGE [years]');
           end
+          if D.verbose, fprintf('BrainAGE [years]:\n'); end
           set(gca,'FontSize',20);
         end
         
