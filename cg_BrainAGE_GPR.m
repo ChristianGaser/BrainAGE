@@ -345,7 +345,7 @@ D.male_train = male_train;
 
 % give warning if age range differs by more than two years
 if (min(age_train)-min(D.age_test) > 2) || (max(D.age_test)>max(age_train) > 2)
-  fprintf('Warning: Defined age range of training sample (%g..%g years) does not fit to real age range of sample %g..%g\n',...
+  fprintf('Warning: Defined age range of training sample (%3.1f..%3.1f years) differ from real age range of sample %g..%g\n',...
       min(age_train),max(age_train),min(D.age_test),max(D.age_test));
 end
 
@@ -369,11 +369,11 @@ if D.PCA
     n_PCA = min(size(Y_train)) - 1;
   end
 
-  [mapped_train, mapping] = cg_pca(Y_train, n_PCA,D.PCA_method);
+  [mapped_train, mapping] = cg_pca(Y_train,n_PCA,D.PCA_method);
 
   clear Y_train
   mapped_test = (D.Y_test - repmat(mapping.mean, [size(D.Y_test, 1) 1])) * mapping.M;
-  clear mapping
+  if ~D.p_dropout, clear mapping; end
   
   mapped_train = double(mapped_train);
   mapped_test  = double(mapped_test);
@@ -383,6 +383,10 @@ if D.PCA
   mx = max(mapped_train(:));
   mapped_train = (mapped_train - mn)/(mx - mn);
   mapped_test  = (mapped_test - mn)/(mx - mn);
+  
+  mapping.mn = mn;
+  mapping.mx = mx;
+  
 else
   mapped_train = double(Y_train); clear Y_train
   mapped_test  = double(D.Y_test);
@@ -394,7 +398,12 @@ if minimize_hyperparam
 end
 
 % Regression using GPR
-PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
+
+if D.PCA && D.p_dropout
+  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
+else
+  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
+end
 
 BrainAGE = PredictedAge-D.age_test;
 

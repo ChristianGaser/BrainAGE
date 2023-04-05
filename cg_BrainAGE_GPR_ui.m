@@ -339,6 +339,9 @@ if ~isfield(D,'run_kfold')
   if isfield(D,'k_fold')
     fprintf('k-Fold:       \t%d\n',D.k_fold);
   end
+  if D.p_dropout
+    fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
+  end
   fprintf('PCA:          \t%d (method: %s)\n',D.PCA,D.PCA_method);
   fprintf('Trend correct:\t%d\n',D.trend_degree);
   fprintf('Age-Range:    \t%g-%g\n',D.age_range(1),D.age_range(2));
@@ -1089,7 +1092,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     end
   end
   
-  if D.ensemble_method == 4, fprintf('GPR ensemble approach is only useful for k-fold validation.\n'); end
+  if isfield(D,'ensemble_method') && D.ensemble_method == 4, fprintf('GPR ensemble approach is only useful for k-fold validation.\n'); end
   BA_unsorted_weighted  = ensemble_models(BA_unsorted,D.age_test,D);
     
   % apply final trend correction to weighted model if not k-fold validation
@@ -1273,7 +1276,7 @@ else
   ensemble_method = 2;
 end
 
-if nargin < 4 && ensemble_method == 4
+if (nargin < 4) & (ensemble_method == 4)
   fprintf('For GPR ensemble method you have to define 5 arguments.\n');
   ensemble_method = 1;
 end
