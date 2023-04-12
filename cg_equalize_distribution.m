@@ -4,6 +4,9 @@ function [sample_sel, c] = cg_equalize_distribution(sample_ref, sample_src, opts
 % matrix based on the euclidean norm between sample_src and sample_ref.
 % This cost matrix is used to solve the assignment problem based on the 
 % Hungarian method.
+% To speed up the very slow search for huge data sets we internally use rounded
+% integer values (after multiplying with 1000) for the cost matrix which is much
+% faster and should not influence the results. 
 %
 % sample_ref  - sample that is used as reference distribution. This can be a
 %               matrix of size m x n where m are the dimensions and n the 
@@ -15,8 +18,7 @@ function [sample_sel, c] = cg_equalize_distribution(sample_ref, sample_src, opts
 % opts.weight - vector of size m that allows to weight the cost function
 % opts.range  - matrix m x 2 which defines the range of sample_src
 % opts.tol    - vector of size m that defines tolerance between mean value of
-%               sample_ref and the output sample_sel
-% opts.debug  - print debug information
+%               sample_ref and the mean value of output sample_sel
 %
 % Output
 % -------
@@ -53,34 +55,33 @@ else
   trans_src = false;
 end
 
-if n_ref > n_src, error('Size mismatch'); end
+if n_ref > n_src, error('Size of reference sample should be smaller than your source sample'); end
 
 if ~isfield(opts,'weight'), opts.weight = ones(m,1); end
 if ~isfield(opts,'tol'),    opts.tol = inf(m,1); end
 if ~isfield(opts,'range'),  opts.range = repmat([-Inf; Inf],1,m); end
-if ~isfield(opts,'debug'),  opts.debug = false; end
 
 if m ~= size(opts.range,2)
   opts.range = opts.range';
 end
 
-if m ~= m0, error('Size mismatch'); end
+if m ~=  m0, error('Size mismatch between reference and source sample.'); end
 
 m = numel(opts.weight);
-if m ~= m0, error('Size mismatch'); end
+if m ~=  m0, error('Size mismatch. Weight must be defined with %d entries.',m0'); end
 m = numel(opts.tol);
-if m ~= m0, error('Size mismatch'); end
+if m ~=  m0, error('Size mismatch. Tolerance must be defined with %d entries.',m0); end
 
 cost = zeros(n_src);
 scl = opts.weight./max([sample_ref; sample_src]);
 
-for j=1:m
+for j = 1:m
   ind = sample_src(:,j) < opts.range(1,j) | sample_src(:,j) > opts.range(2,j);
   sample_src(ind,j) = Inf;
 end
   
-for i=1:n_src
-  for j=1:m
+for i = 1:n_src
+  for j = 1:m
     if isfinite(sample_src(i,j))
       cost(i,1:n_ref) = cost(i,1:n_ref) + (scl(j)*(sample_ref(:,j) - sample_src(i,j)).^2)';  
     else
@@ -90,7 +91,9 @@ for i=1:n_src
   cost(i,1:n_ref) = cost(i,1:n_ref).^0.5;
 end
 
-c = hungarian(cost);
+% Use rounded values for cost matrix A and scale with 1000 for rounding issues
+% Using integers is much faster....
+c = hungarian(round(1000*cost));
 
 n = 1;
 while 1
@@ -103,8 +106,8 @@ while 1
   if n_rem < n_ref, break; end
   
   cost_rem = zeros(n_rem);
-  for i=1:n_rem
-    for j=1:m
+  for i = 1:n_rem
+    for j = 1:m
       if isfinite(sample_rem(i,j))
        cost_rem(i,1:n_ref) = cost_rem(i,1:n_ref) + (scl(j)*(sample_ref(:,j) - sample_rem(i,j)).^2)';    
       else
@@ -114,12 +117,14 @@ while 1
     cost_rem(i,1:n_ref) = cost_rem(i,1:n_ref).^0.5;
   end
 
-  c_rem = hungarian(cost_rem);
+  % Use rounded values for cost matrix A and scale with 1000 for rounding issues
+  % Using integers is much faster....
+  c_rem = hungarian(round(1000*cost_rem));
   ind_rem = n*n_ref+1:n_rem;
   c_rem_ind = c_rem(ind_rem);
   % sort columns without zero entries to rank the remaining costs in the
   % index
-  [x,xi] = sort(min(cost_rem(c_rem_ind,1:n_ref),[],2));
+  [~,xi] = sort(min(cost_rem(c_rem_ind,1:n_ref),[],2));
   c_rem(ind_rem) = c_rem_ind(xi);
 
   c(ind) = cind(c_rem);
@@ -131,43 +136,36 @@ if numel(cind) < n_ref
   % select only those columns that exceed n_ref
   % sort columns without zero entries to rank the remaining costs in the
   % index
-  [x,xi] = sort(min(cost(cind,1:n_ref),[],2));
+  [~,xi] = sort(min(cost(cind,1:n_ref),[],2));
   c(ind) = cind(xi);
 end
 
 sample_sel = sample_src(c,:);
 
-if opts.debug
-  for j=1:m
-    fprintf('%3.2f\t(%3.2f)\t',mean(sample_ref(:,j)),std(sample_ref(:,j)));
-  end
-  fprintf('\n');
-end
-
 % find selected sample inside tolerance
-for i=n_ref:n_src
-  for j=1:m
+for i = n_ref:n_src
+  for j = 1:m
     if abs(mean(sample_sel(1:i,j)) - mean(sample_ref(:,j))) > opts.tol(j) && opts.weight(j)
       c = c(1:i-1);
       sample_sel = sample_sel(1:i-1,:);
       if trans_src, sample_sel = sample_sel'; end
+      fprintf('Sample    \tSize\tMean\tSD\n');
+      for k = 1:m
+        fprintf('Reference \t%d\t%3.2f\t%3.2f\n',size(sample_ref,1),mean(sample_ref(:,k)),std(sample_ref(:,k)));
+        fprintf('Source    \t%d\t%3.2f\t%3.2f\t',size(sample_sel,1),mean(sample_sel(:,k)),std(sample_sel(:,k)));
+        fprintf('\n');
+      end
+      fprintf('\n');
       return;
     end
-    if opts.debug
-      if j==1, fprintf('%d\t',i); end
-      fprintf('%3.2f\t(%3.2f)\t',mean(sample_sel(1:i,j)),std(sample_sel(1:i,j)));
-    end
-  end
-  if opts.debug
-    fprintf('\n');
   end
 end
 if trans_src, sample_sel = sample_sel'; end
 
-function [C,T]=hungarian(A)
+function [C,T] = hungarian(A)
 %HUNGARIAN Solve the Assignment problem using the Hungarian method.
 %
-%[C,T]=hungarian(A)
+%[C,T] = hungarian(A)
 %A - a square cost matrix.
 %C - the optimal assignment.
 %T - the cost of the optimal assignment.
@@ -186,287 +184,291 @@ function [C,T]=hungarian(A)
 % publication or otherwise, please include an acknowledgement or at least
 % notify me by email. /Niclas
 
-[m,n]=size(A);
+[m,n] = size(A);
 
-if (m~=n)
+if (m~= n)
     error('HUNGARIAN: Cost matrix must be square!');
 end
 
 % Save original cost matrix.
-orig=A;
+if nargout > 1
+    orig = A;
+end
 
-% Reduce matrix.
-A=hminired(A);
+% Reduce matrix
+A = hminired(A);
 
 % Do an initial assignment.
-[A,C,U]=hminiass(A);
+[A,C,U] = hminiass(A);
 
 % Repeat while we have unassigned rows.
 while (U(n+1))
     % Start with no path, no unchecked zeros, and no unexplored rows.
-    LR=zeros(1,n);
-    LC=zeros(1,n);
-    CH=zeros(1,n);
-    RH=[zeros(1,n) -1];
+    LR = zeros(1,n);
+    LC = zeros(1,n);
+    CH = zeros(1,n);
+    RH = [zeros(1,n) -1];
     
     % No labelled columns.
-    SLC=[];
+    SLC = [];
     
     % Start path in first unassigned row.
-    r=U(n+1);
+    r = U(n+1);
     % Mark row with end-of-path label.
-    LR(r)=-1;
+    LR(r) = -1;
     % Insert row first in labelled row set.
-    SLR=r;
+    SLR = r;
     
     % Repeat until we manage to find an assignable zero.
     while (1)
         % If there are free zeros in row r
-        if (A(r,n+1)~=0)
+        if (A(r,n+1)~= 0)
             % ...get column of first free zero.
-            l=-A(r,n+1);
+            l = -A(r,n+1);
             
             % If there are more free zeros in row r and row r in not
             % yet marked as unexplored..
-            if (A(r,l)~=0 & RH(r)==0)
+            if (A(r,l)~= 0 && RH(r) ==0)
                 % Insert row r first in unexplored list.
-                RH(r)=RH(n+1);
-                RH(n+1)=r;
+                RH(r) = RH(n+1);
+                RH(n+1) = r;
                 
                 % Mark in which column the next unexplored zero in this row
                 % is.
-                CH(r)=-A(r,l);
+                CH(r) = -A(r,l);
             end
         else
             % If all rows are explored..
-            if (RH(n+1)<=0)
+            if (RH(n+1) <= 0)
                 % Reduce matrix.
-                [A,CH,RH]=hmreduce(A,CH,RH,LC,LR,SLC,SLR);
+                [A,CH,RH] = hmreduce(A,CH,RH,LC,LR,SLC,SLR);
             end
             
             % Re-start with first unexplored row.
-            r=RH(n+1);
+            r = RH(n+1);
             % Get column of next free zero in row r.
-            l=CH(r);
+            l = CH(r);
             % Advance "column of next free zero".
-            CH(r)=-A(r,l);
+            CH(r) = -A(r,l);
             % If this zero is last in the list..
-            if (A(r,l)==0)
+            if (A(r,l) ==0)
                 % ...remove row r from unexplored list.
-                RH(n+1)=RH(r);
-                RH(r)=0;
+                RH(n+1) = RH(r);
+                RH(r) = 0;
             end
         end
         
         % While the column l is labelled, i.e. in path.
-        while (LC(l)~=0)
+        while (LC(l)~= 0)
             % If row r is explored..
-            if (RH(r)==0)
+            if (RH(r) ==0)
                 % If all rows are explored..
-                if (RH(n+1)<=0)
+                if (RH(n+1) <= 0)
                     % Reduce cost matrix.
-                    [A,CH,RH]=hmreduce(A,CH,RH,LC,LR,SLC,SLR);
+                    [A,CH,RH] = hmreduce(A,CH,RH,LC,LR,SLC,SLR);
                 end
                 
                 % Re-start with first unexplored row.
-                r=RH(n+1);
+                r = RH(n+1);
             end
             
             % Get column of next free zero in row r.
-            l=CH(r);
+            l = CH(r);
             
             % Advance "column of next free zero".
-            CH(r)=-A(r,l);
+            CH(r) = -A(r,l);
             
             % If this zero is last in list..
-            if(A(r,l)==0)
+            if(A(r,l) ==0)
                 % ...remove row r from unexplored list.
-                RH(n+1)=RH(r);
-                RH(r)=0;
+                RH(n+1) = RH(r);
+                RH(r) = 0;
             end
         end
         
         % If the column found is unassigned..
-        if (C(l)==0)
+        if (C(l) ==0)
             % Flip all zeros along the path in LR,LC.
-            [A,C,U]=hmflip(A,C,LC,LR,U,l,r);
+            [A,C,U] = hmflip(A,C,LC,LR,U,l,r);
             % ...and exit to continue with next unassigned row.
             break;
         else
             % ...else add zero to path.
             
             % Label column l with row r.
-            LC(l)=r;
+            LC(l) = r;
             
             % Add l to the set of labelled columns.
-            SLC=[SLC l];
+            SLC = [SLC l];
             
             % Continue with the row assigned to column l.
-            r=C(l);
+            r = C(l);
             
             % Label row r with column l.
-            LR(r)=l;
+            LR(r) = l;
             
             % Add r to the set of labelled rows.
-            SLR=[SLR r];
+            SLR = [SLR r];
         end
     end
 end
 
 % Calculate the total cost.
-T=sum(orig(logical(sparse(C,1:size(orig,2),1))));
+if nargout > 1
+    T = sum(orig(logical(sparse(C,1:size(orig,2),1))));
+end
 
-
-function A=hminired(A)
+function A = hminired(A)
 %HMINIRED Initial reduction of cost matrix for the Hungarian method.
 %
-%B=assredin(A)
+%B = assredin(A)
 %A - the unreduced cost matris.
 %B - the reduced cost matrix with linked zeros in each row.
 
 % v1.0  96-06-13. Niclas Borlin, niclas@cs.umu.se.
 
-[m,n]=size(A);
+[m,n] = size(A);
 
 % Subtract column-minimum values from each column.
-colMin=min(A);
-A=A-colMin(ones(n,1),:);
+colMin = min(A);
+
+A = A-colMin(ones(n,1),:);
 
 % Subtract row-minimum values from each row.
-rowMin=min(A')';
-A=A-rowMin(:,ones(1,n));
+rowMin = min(A')';
+A = A-rowMin(:,ones(1,n));
 
 % Get positions of all zeros.
-[i,j]=find(A==0);
+[i,j] = find(A ==0);
 
 % Extend A to give room for row zero list header column.
-A(1,n+1)=0;
-for k=1:n
+A(1,n+1) = 0;
+for k = 1:n
     % Get all column in this row. 
-    cols=j(k==i)';
+    cols = j(k ==i)';
     % Insert pointers in matrix.
-    A(k,[n+1 cols])=[-cols 0];
+    A(k,[n+1 cols]) = [-cols 0];
 end
 
 
-function [A,C,U]=hminiass(A)
+function [A,C,U] = hminiass(A)
 %HMINIASS Initial assignment of the Hungarian method.
 %
-%[B,C,U]=hminiass(A)
+%[B,C,U] = hminiass(A)
 %A - the reduced cost matrix.
 %B - the reduced cost matrix, with assigned zeros removed from lists.
-%C - a vector. C(J)=I means row I is assigned to column J,
+%C - a vector. C(J) = I means row I is assigned to column J,
 %              i.e. there is an assigned zero in position I,J.
 %U - a vector with a linked list of unassigned rows.
 
 % v1.0  96-06-14. Niclas Borlin, niclas@cs.umu.se.
 
-[n,np1]=size(A);
+[n,np1] = size(A);
 
 % Initalize return vectors.
-C=zeros(1,n);
-U=zeros(1,n+1);
+C = zeros(1,n);
+U = zeros(1,n+1);
 
 % Initialize last/next zero "pointers".
-LZ=zeros(1,n);
-NZ=zeros(1,n);
+LZ = zeros(1,n);
+NZ = zeros(1,n);
 
-for i=1:n
+for i = 1:n
     % Set j to first unassigned zero in row i.
-  lj=n+1;
-  j=-A(i,lj);
+  lj = n+1;
+  j = -A(i,lj);
 
-    % Repeat until we have no more zeros (j==0) or we find a zero
-  % in an unassigned column (c(j)==0).
+    % Repeat until we have no more zeros (j ==0) or we find a zero
+  % in an unassigned column (c(j) ==0).
     
-  while (C(j)~=0)
+  while (C(j)~= 0)
     % Advance lj and j in zero list.
-    lj=j;
-    j=-A(i,lj);
+    lj = j;
+    j = -A(i,lj);
   
     % Stop if we hit end of list.
-    if (j==0)
+    if (j ==0)
       break;
     end
   end
 
-  if (j~=0)
+  if (j~= 0)
     % We found a zero in an unassigned column.
     
     % Assign row i to column j.
-    C(j)=i;
+    C(j) = i;
     
     % Remove A(i,j) from unassigned zero list.
-    A(i,lj)=A(i,j);
+    A(i,lj) = A(i,j);
 
     % Update next/last unassigned zero pointers.
-    NZ(i)=-A(i,j);
-    LZ(i)=lj;
+    NZ(i) = -A(i,j);
+    LZ(i) = lj;
 
     % Indicate A(i,j) is an assigned zero.
-    A(i,j)=0;
+    A(i,j) = 0;
   else
     % We found no zero in an unassigned column.
 
     % Check all zeros in this row.
 
-    lj=n+1;
-    j=-A(i,lj);
+    lj = n+1;
+    j = -A(i,lj);
     
     % Check all zeros in this row for a suitable zero in another row.
-    while (j~=0)
+    while (j~= 0)
       % Check the in the row assigned to this column.
-      r=C(j);
+      r = C(j);
       
       % Pick up last/next pointers.
-      lm=LZ(r);
-      m=NZ(r);
+      lm = LZ(r);
+      m = NZ(r);
       
       % Check all unchecked zeros in free list of this row.
-      while (m~=0)
+      while (m~= 0)
         % Stop if we find an unassigned column.
-        if (C(m)==0)
+        if (C(m) ==0)
           break;
         end
         
         % Advance one step in list.
-        lm=m;
-        m=-A(r,lm);
+        lm = m;
+        m = -A(r,lm);
       end
       
-      if (m==0)
+      if (m ==0)
         % We failed on row r. Continue with next zero on row i.
-        lj=j;
-        j=-A(i,lj);
+        lj = j;
+        j = -A(i,lj);
       else
         % We found a zero in an unassigned column.
       
         % Replace zero at (r,m) in unassigned list with zero at (r,j)
-        A(r,lm)=-j;
-        A(r,j)=A(r,m);
+        A(r,lm) = -j;
+        A(r,j) = A(r,m);
       
         % Update last/next pointers in row r.
-        NZ(r)=-A(r,m);
-        LZ(r)=j;
+        NZ(r) = -A(r,m);
+        LZ(r) = j;
       
         % Mark A(r,m) as an assigned zero in the matrix . . .
-        A(r,m)=0;
+        A(r,m) = 0;
       
         % ...and in the assignment vector.
-        C(m)=r;
+        C(m) = r;
       
         % Remove A(i,j) from unassigned list.
-        A(i,lj)=A(i,j);
+        A(i,lj) = A(i,j);
       
         % Update last/next pointers in row r.
-        NZ(i)=-A(i,j);
-        LZ(i)=lj;
+        NZ(i) = -A(i,j);
+        LZ(i) = lj;
       
         % Mark A(r,m) as an assigned zero in the matrix . . .
-        A(i,j)=0;
+        A(i,j) = 0;
       
         % ...and in the assignment vector.
-        C(j)=i;
+        C(j) = i;
         
         % Stop search.
         break;
@@ -478,20 +480,20 @@ end
 % Create vector with list of unassigned rows.
 
 % Mark all rows have assignment.
-r=zeros(1,n);
-rows=C(C~=0);
-r(rows)=rows;
-empty=find(r==0);
+r = zeros(1,n);
+rows = C(C~= 0);
+r(rows) = rows;
+empty = find(r ==0);
 
 % Create vector with linked list of unassigned rows.
-U=zeros(1,n+1);
-U([n+1 empty])=[empty 0];
+U = zeros(1,n+1);
+U([n+1 empty]) = [empty 0];
 
 
-function [A,C,U]=hmflip(A,C,LC,LR,U,l,r)
+function [A,C,U] = hmflip(A,C,LC,LR,U,l,r)
 %HMFLIP Flip assignment state of all zeros along a path.
 %
-%[A,C,U]=hmflip(A,C,LC,LR,U,l,r)
+%[A,C,U] = hmflip(A,C,LC,LR,U,l,r)
 %Input:
 %A   - the cost matrix.
 %C   - the assignment vector.
@@ -506,47 +508,46 @@ function [A,C,U]=hmflip(A,C,LC,LR,U,l,r)
 
 % v1.0  96-06-14. Niclas Borlin, niclas@cs.umu.se.
 
-n=size(A,1);
+n = size(A,1);
 
 while (1)
     % Move assignment in column l to row r.
-    C(l)=r;
+    C(l) = r;
     
     % Find zero to be removed from zero list..
     
     % Find zero before this.
-    m=find(A(r,:)==-l);
+    m = find(A(r,:) ==-l);
     
     % Link past this zero.
-    A(r,m)=A(r,l);
+    A(r,m) = A(r,l);
     
-    A(r,l)=0;
+    A(r,l) = 0;
     
     % If this was the first zero of the path..
     if (LR(r)<0)
         ...remove row from unassigned row list and return.
-        U(n+1)=U(r);
-        U(r)=0;
+        U(n+1) = U(r);
+        U(r) = 0;
         return;
     else
         
         % Move back in this row along the path and get column of next zero.
-        l=LR(r);
+        l = LR(r);
         
         % Insert zero at (r,l) first in zero list.
-        A(r,l)=A(r,n+1);
-        A(r,n+1)=-l;
+        A(r,l) = A(r,n+1);
+        A(r,n+1) = -l;
         
         % Continue back along the column to get row of next zero in path.
-        r=LC(l);
+        r = LC(l);
     end
 end
 
-
-function [A,CH,RH]=hmreduce(A,CH,RH,LC,LR,SLC,SLR)
+function [A,CH,RH] = hmreduce(A,CH,RH,LC,LR,SLC,SLR)
 %HMREDUCE Reduce parts of cost matrix in the Hungerian method.
 %
-%[A,CH,RH]=hmreduce(A,CH,RH,LC,LR,SLC,SLR)
+%[A,CH,RH] = hmreduce(A,CH,RH,LC,LR,SLC,SLR)
 %Input:
 %A   - Cost matrix.
 %CH  - vector of column of 'next zeros' in each row.
@@ -563,69 +564,69 @@ function [A,CH,RH]=hmreduce(A,CH,RH,LC,LR,SLC,SLR)
 
 % v1.0  96-06-14. Niclas Borlin, niclas@cs.umu.se.
 
-n=size(A,1);
+n = size(A,1);
 
 % Find which rows are covered, i.e. unlabelled.
-coveredRows=LR==0;
+coveredRows = LR ==0;
 
 % Find which columns are covered, i.e. labelled.
-coveredCols=LC~=0;
+coveredCols = LC~= 0;
 
-r=find(~coveredRows);
-c=find(~coveredCols);
+r = find(~coveredRows);
+c = find(~coveredCols);
 
 % Get minimum of uncovered elements.
-m=min(min(A(r,c)));
+m = min(min(A(r,c)));
 
 % Subtract minimum from all uncovered elements.
-A(r,c)=A(r,c)-m;
+A(r,c) = A(r,c)-m;
 
-% Check all uncovered columns..
-for j=c
-    % ...and uncovered rows in path order..
-    for i=SLR
+% Check alluncovered rows in path order..
+for i = SLR
+    % Check all uncovered columns..
+    for j = c
         % If this is a (new) zero..
-        if (A(i,j)==0)
+        if (A(i,j) ==0)
             % If the row is not in unexplored list..
-            if (RH(i)==0)
+            if (RH(i) ==0)
                 % ...insert it first in unexplored list.
-                RH(i)=RH(n+1);
-                RH(n+1)=i;
+                RH(i) = RH(n+1);
+                RH(n+1) = i;
                 % Mark this zero as "next free" in this row.
-                CH(i)=j;
+                CH(i) = j;
             end
             % Find last unassigned zero on row I.
-            row=A(i,:);
-            colsInList=-row(row<0);
-            if (length(colsInList)==0)
+            row = A(i,:);
+            colsInList = -row(row<0);
+            if (isempty(colsInList))
                 % No zeros in the list.
-                l=n+1;
+                l = n+1;
             else
-                l=colsInList(row(colsInList)==0);
+                l = colsInList(row(colsInList) ==0);
             end
             % Append this zero to end of list.
-            A(i,l)=-j;
+            A(i,l) = -j;
         end
     end
 end
 
 % Add minimum to all doubly covered elements.
-r=find(coveredRows);
-c=find(coveredCols);
+r = find(coveredRows);
+c = find(coveredCols);
 
 % Take care of the zeros we will remove.
-[i,j]=find(A(r,c)<=0);
+[i,j] = find(A(r,c) <= 0);
 
-i=r(i);
-j=c(j);
+i = r(i);
+j = c(j);
 
-for k=1:length(i)
+for k = 1:length(i)
     % Find zero before this in this row.
-    lj=find(A(i(k),:)==-j(k));
+    lj = A(i(k),:) ==-j(k);
     % Link past it.
-    A(i(k),lj)=A(i(k),j(k));
+    A(i(k),lj) = A(i(k),j(k));
     % Mark it as assigned.
-    A(i(k),j(k))=0;
+    A(i(k),j(k)) = 0;
 end
 
-A(r,c)=A(r,c)+m;
+A(r,c) = A(r,c)+m;

@@ -48,6 +48,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 % D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
 % D.trend_degree    - estimate trend with defined order using healthy controls and apply it to all data (set to -1 for skipping trend correction)
 % D.trend_method    - use different methods for estimating trend:
+%                     0 skip trend correction (set trend_degree to -1)
 %                     1 use BrainAGE for trend correction (default)
 %                     2 use predicted age for trend correction (as used in Cole et al. 2018)
 % D.PCA             - apply PCA as feature reduction (default=1), values > 1 define number of PCA components
@@ -79,8 +80,8 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 %                     D.contrast can be also a vector which is used to maximize variance between BrainAGE and this parameter.
 % D.dir             - directory for databases and code
 % D.verbose         - verbose level (default=1), set to "0" to suppress long outputs
-% D.threshold_std   - all data with a standard deviation > D.threshold_std of mean covariance are excluded
-%                     (after covarying out effects of age)
+% D.threshold_std   - all data with a standard deviation > D.threshold_std of mean covariance are excluded (after covarying out effects of age)
+%                     meaningful values are 1,2 or Inf
 % D.eqdist          - options for age and sex equalization between test and train
 % D.eqdist.weight   - vector of size 2 that allows to weight the cost function for age and sex equalization
 % D.eqdist.range    - matrix 2 x 2 which defines the age range and sex range for equalization
@@ -97,7 +98,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 % ---------------
 % Some selected parameters can be also defined as ranges to try different parameter settings.
 % Examples:
-% D.trend_degree = 2;
+% D.trend_degree = 1;
 % D.threshold_std = [Inf];
 % D.age_range = [20 50];
 % D.res_array    = {'4','8'};   
@@ -118,7 +119,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 global min_hyperparam
 
 if ~isfield(D,'trend_degree')
-  D.trend_degree = 2;
+  D.trend_degree = 1;
 end
 
 if ~isfield(D,'trend_method')
@@ -156,6 +157,11 @@ if D.trend_method > 1 && D.trend_degree > 1
   fprintf('Only use linear trend correction for method that uses predicted age for obtaining trend correction.\n');
 end
 
+if ~D.trend_method
+  if D.trend_degree > -1, fprintf('Disable trend correction.\n'); end
+  D.trend_degree = -1;
+end
+
 % this is just for compatbility with older scripts
 if isfield(D,'seg') && ~isfield(D,'seg_array')
   D.seg_array = D.seg;
@@ -189,6 +195,10 @@ end
 % verbose level
 if ~isfield(D,'verbose')
   D.verbose = 1;
+end
+
+if D.verbose
+  addpath(fullfile(spm('dir'),'toolbox','cat12'));
 end
 
 % fill the missing field if neccessary
@@ -790,7 +800,7 @@ for i = 1:numel(D.res_array)
           end
         end
                                       
-        [BrainAGE, ~, ~, D] = cg_BrainAGE_GPR(D);
+        [BrainAGE, ~, D] = cg_BrainAGE_GPR(D);
 
         % move on if training fa~iled
         if all(isnan(BrainAGE)) || std(BrainAGE)==0
@@ -909,8 +919,8 @@ for i = 1:numel(D.res_array)
         end
 
         % print age of groups
-        if D.verbose, fprintf('Age [years]:\n'); end
         if D.verbose
+          fprintf('Age [years]:\n');
           fprintf('%20s\t','Group');
           for o = 1:n_groups
             fprintf('%20s\t',deblank(D.name_groups(o,:)));
@@ -933,12 +943,12 @@ for i = 1:numel(D.res_array)
           else
             xlabel('BrainAGE [years]');
           end
-          if D.verbose, fprintf('BrainAGE [years]:\n'); end
           set(gca,'FontSize',20);
         end
         
         % print BrainAGE of groups
-        if D.verbose
+        if D.verbose 
+          fprintf('BrainAGE [years]:\n');
           fprintf('%20s\t','Group');
           for o = 1:n_groups
             fprintf('%20s\t',deblank(D.name_groups(o,:)));
@@ -946,10 +956,9 @@ for i = 1:numel(D.res_array)
         
           fprintf('\n'); fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o)); end
           fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o)); end
-          fprintf('\n'); fprintf('%20s\t','SD'); for o = 1:n_groups, fprintf('%20.3f\t',SD_BrainAGE(o)); end
+          fprintf('\n'); fprintf('%20s\t','SD2');     for o = 1:n_groups, fprintf('%20.3f\t',SD_BrainAGE(o)); end
           fprintf('\n');
-    
-        end 
+        end
   
         % ANOVA + T-Test
         if n_groups > 1
@@ -980,13 +989,13 @@ for i = 1:numel(D.res_array)
               fprintf('%20s\t',deblank(D.name_groups(o,:)));
               for p = 1:n_groups
                 if P(o,p) <= 0.001 || P(o,p) >= 0.999
-                  fprintf('%20.7f***\t',P(o,p));
+                  fprintf('%20g***\t',P(o,p));
                 elseif P(o,p) <= 0.01 || P(o,p) >= 0.99
-                  fprintf('%20.7f **\t',P(o,p));
+                  fprintf('%20g **\t',P(o,p));
                 elseif P(o,p) <= 0.05 || P(o,p) >= 0.95
-                  fprintf('%20.7f  *\t',P(o,p));
+                  fprintf('%20g  *\t',P(o,p));
                 else
-                  fprintf('%20.7f\t',P(o,p));
+                  fprintf('%20g\t',P(o,p));
                 end
               end
               fprintf('\n');
@@ -1090,13 +1099,13 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
         fprintf('%20s\t',deblank(D.name_groups(o,:)));
         for p = 1:n_groups
           if P(o,p) <= 0.001 || P(o,p) >= 0.999
-            fprintf('%20.7f***\t',P(o,p));
+            fprintf('%20g***\t',P(o,p));
           elseif P(o,p) <= 0.01 || P(o,p) >= 0.99
-            fprintf('%20.7f **\t',P(o,p));
+            fprintf('%20g **\t',P(o,p));
           elseif P(o,p) <= 0.05 || P(o,p) >= 0.95
-            fprintf('%20.7f  *\t',P(o,p));
+            fprintf('%20g  *\t',P(o,p));
           else
-            fprintf('%20.7f\t',P(o,p));
+            fprintf('%20g\t',P(o,p));
           end
         end
         fprintf('\n');
@@ -1145,16 +1154,16 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   end
     
   % print BrainAGE of groups
-  if D.verbose && all(sum(isnan(BA_unsorted)) == 0)
-    fprintf('%20s\t','Group');
-    for o = 1:n_groups
-      fprintf('%20s\t',deblank(D.name_groups(o,:)));
-    end
-  
-    fprintf('\n'); fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o)); end
-    fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o)); end
-    fprintf('\n');
+  fprintf('%20s\t','Group');
+  for o = 1:n_groups
+    fprintf('%20s\t',deblank(D.name_groups(o,:)));
+  end
 
+  fprintf('\n'); fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o)); end
+  fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o)); end
+  fprintf('\n');
+
+  if D.verbose && all(sum(isnan(BA_unsorted)) == 0)
     figure(24)
     cat_plot_boxplot(data_cell,opt);
 

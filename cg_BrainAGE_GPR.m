@@ -1,4 +1,4 @@
-function [BrainAGE,PredictedAge,PredictedVar,D] = cg_BrainAGE_GPR(D)
+function [BrainAGE,PredictedAge,D] = cg_BrainAGE_GPR(D)
 %
 % D.Y_test          - volume data for estimation
 % D.age_test        - age of each volume 
@@ -288,6 +288,7 @@ if isfield(D,'eqdist') && isfield(D.eqdist,'tol')
     % find assignement using Hungarian method
     fprintf('Estimate assignement to match distribution of train data to test data\n');
     [sample_sel, sel] = cg_equalize_distribution(sample_ref, sample_src, D.eqdist);
+    fprintf('Selected %d of %d data sets for training after age/sex equalization.\n',numel(sel),numel(age_train));
 
     % save selection to skip time consuming assignement for next runs
     D.eqdist.sel = sel;
@@ -357,10 +358,10 @@ end
 % Regression using GPR
 
 if D.PCA && D.p_dropout
-  [PredictedAge, PredictedVar] = cg_GPR(mapped_train, age_train, mapped_test, ...
+  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, ...
           D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
 else
-  [PredictedAge, PredictedVar] = cg_GPR(mapped_train, age_train, mapped_test, ...
+  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, ...
           D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
 end
 
