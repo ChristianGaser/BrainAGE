@@ -1,4 +1,7 @@
-function [mu, vr, model_gpr] = cg_GPR(x_train, y_train, x_test, meanhyp, likhyp, p_dropout, mapping, x_test_org)
+function [mu, vr, model_gpr] = BA_gpr_core(x_train, y_train, x_test, meanhyp, likhyp, p_dropout, mapping, x_test_org)
+% [mu, vr, model_gpr] = BA_gpr_core(x_train, y_train, x_test, meanhyp, likhyp, p_dropout, mapping, x_test_org)
+% Gaussian Process Regression core function
+%
 % This function implements Gaussian Process Regression (GPR) with a linear
 % covariance function using the conjugate gradient method for numerical
 % optimization. Given a set of training inputs (x_train) and corresponding
@@ -47,7 +50,7 @@ function [mu, vr, model_gpr] = cg_GPR(x_train, y_train, x_test, meanhyp, likhyp,
 % $Id$
 
 if nargin < 3
-  error('At least 3 parameters have to be defined. Syntax: mu = cg_GPR(x_train, y_train, x_test, meanhyp, likhyp)');
+  error('At least 3 parameters have to be defined. Syntax: mu = BA_gpr_core(x_train, y_train, x_test, meanhyp, likhyp)');
 end
 
 % Define covariance function

@@ -1,4 +1,4 @@
-function [mappedX, mapping] = cg_pca(X, no_dims, method)
+function [mappedX, mapping] = BA_pca(X, no_dims, method)
 %PCA Perform the PCA algorithm
 %
 %   [mappedX, mapping] = pca(X, no_dims, method)

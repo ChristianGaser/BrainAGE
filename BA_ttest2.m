@@ -1,4 +1,4 @@
-function [h,p,ci,stats] = cg_ttest2(x,y,alpha,tail,vartype,dim)
+function [h,p,ci,stats] = BA_ttest2(x,y,alpha,tail,vartype,dim)
 %TTEST2 Two-sample t-test with pooled or unpooled variance estimate.
 %   H = TTEST2(X,Y) performs a t-test of the hypothesis that two
 %   independent samples, in the vectors X and Y, come from distributions

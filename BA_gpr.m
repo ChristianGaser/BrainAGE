@@ -1,4 +1,6 @@
-function [BrainAGE,PredictedAge,D] = cg_BrainAGE_GPR(D)
+function [BrainAGE,PredictedAge,D] = BA_gpr(D)
+% [BrainAGE, PredictedAge ,D] = BA_gpr_ui(D)
+% BrainAGE estimation using Gaussian Process Regression (GPR)
 %
 % D.Y_test          - volume data for estimation
 % D.age_test        - age of each volume 
@@ -170,7 +172,7 @@ for i = 1:n_training_samples
       end
     end
     
-    if D.verbose > 1, fprintf('cg_BrainAGE_GPR: load %s\n',name); end
+    if D.verbose > 1, fprintf('BA_gpr_core: load %s\n',name); end
     load(name);
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
@@ -293,7 +295,7 @@ if isfield(D,'eqdist') && isfield(D.eqdist,'tol')
 
     % find assignement using Hungarian method
     fprintf('Estimate assignement to match distribution of train data to test data\n');
-    [sample_sel, sel] = cg_equalize_distribution(sample_ref, sample_src, D.eqdist);
+    [sample_sel, sel] = BA_equalize_distribution(sample_ref, sample_src, D.eqdist);
     fprintf('Selected %d of %d data sets for training after age/sex equalization.\n',numel(sel),numel(age_train));
 
     % save selection to skip time consuming assignement for next runs
@@ -338,7 +340,7 @@ if D.PCA
     n_PCA = min(size(Y_train)) - 1;
   end
 
-  [mapped_train, mapping] = cg_pca(Y_train,n_PCA,D.PCA_method);
+  [mapped_train, mapping] = BA_pca(Y_train,n_PCA,D.PCA_method);
 
   clear Y_train
   mapped_test = (D.Y_test - repmat(mapping.mean, [size(D.Y_test, 1) 1])) * mapping.M;
@@ -364,10 +366,10 @@ end
 % Regression using GPR
 
 if D.PCA && D.p_dropout
-  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, ...
+  PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
           D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
 else
-  PredictedAge = cg_GPR(mapped_train, age_train, mapped_test, ...
+  PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
           D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
 end
 

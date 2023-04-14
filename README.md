@@ -1,2 +1,2 @@
 # BrainAGE
-BrainAGE Estimation
+BrainAGE estimation using Gaussian Process Regression (GPR)

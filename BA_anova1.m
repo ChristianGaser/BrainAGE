@@ -1,4 +1,4 @@
-function [p,anovatab,stats] = cg_anova1(x,group,displayopt,extra)
+function [p,anovatab,stats] = BA_anova1(x,group,displayopt,extra)
 %ANOVA1 One-way analysis of variance (ANOVA).
 %   ANOVA1 performs a one-way ANOVA for comparing the means of two or more 
 %   groups of data. It returns the p-value for the null hypothesis that the

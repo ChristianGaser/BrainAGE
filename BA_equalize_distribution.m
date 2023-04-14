@@ -1,5 +1,5 @@
-function [sample_sel, c] = cg_equalize_distribution(sample_ref, sample_src, opts)
-% [sample_sel, c] = cg_equalize_distribution(sample_ref, sample_src, opts)
+function [sample_sel, c] = BA_equalize_distribution(sample_ref, sample_src, opts)
+% [sample_sel, c] = BA_equalize_distribution(sample_ref, sample_src, opts)
 % Equals distribution of sample_src w.r.t. sample_ref by creating a cost
 % matrix based on the euclidean norm between sample_src and sample_ref.
 % This cost matrix is used to solve the assignment problem based on the 

@@ -44,7 +44,7 @@ function BA_data2mat(D,fwhm,res,seg)
 % ______________________________________________________________________
 % $Id$
 
-% add cat12 path if not already dome
+% add cat12 path if not already done
 if ~exist('cat_io_data2mat')
   addpath(fullfile(spm('dir'),'toolbox','cat12'));
 end

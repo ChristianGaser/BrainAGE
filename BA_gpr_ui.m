@@ -1,6 +1,6 @@
-function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_ui(D)
-% [BrainAGE, BrainAGE_unsorted,BrainAGE_all,D] = cg_BrainAGE_GPR_ui(D)
-% user interface for BrainAGE estimation
+function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
+% [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D] = BA_gpr_ui(D)
+% User interface for BrainAGE estimation in BA_gpr.m
 %
 % D.train_array     - cell array of training samples
 %     Healthy adults:
@@ -123,6 +123,11 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 
 global min_hyperparam
 
+% add cat12 path if not already done
+if ~exist('cat_stat_polynomial')
+  addpath(fullfile(spm('dir'),'toolbox','cat12'));
+end
+
 if ~isfield(D,'trend_degree')
   D.trend_degree = 1;
 end
@@ -200,10 +205,6 @@ end
 % verbose level
 if ~isfield(D,'verbose')
   D.verbose = 1;
-end
-
-if D.verbose
-  addpath(fullfile(spm('dir'),'toolbox','cat12'));
 end
 
 % fill the missing field if neccessary
@@ -472,13 +473,13 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       age_all       = [age_all; age(ind_test)];
       ind_all       = [ind_all ind_test];
 
-      % prepare cg_BrainAGE_GPR_ui parameters
+      % prepare BA_gpr_ui parameters
       D.ind_groups  = {ind_test};
       D.ind_adjust  = ind_test;
       D.ind_train   = ind_train;
 
       % call nested loop
-      [BA_fold_all, ~, ~, D] = cg_BrainAGE_GPR_ui(D);
+      [BA_fold_all, ~, ~, D] = BA_gpr_ui(D);
 
       if j == 1 && rep == 1
         BA_all = zeros(D.n_data,D.k_fold,D.k_fold_reps,size(BA_fold_all,2));
@@ -684,7 +685,7 @@ for i = 1:numel(D.res_array)
           n_train = numel(ind_plus)-1;
           for l=1:n_train
             name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber];
-            if D.verbose > 1, fprintf('cg_BrainAGE_GPR_ui: load %s\n',name); end
+            if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
             load(name);
             name0 = [name0 '+' name]; 
             age0  = [age0; age]; 
@@ -709,7 +710,7 @@ for i = 1:numel(D.res_array)
           end
         else
           name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data D.relnumber];
-          if D.verbose > 1, fprintf('cg_BrainAGE_GPR_ui: load %s\n',name); end
+          if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
           load(name);
         end
         
@@ -747,14 +748,14 @@ for i = 1:numel(D.res_array)
             n_train = numel(ind_plus)-1;
             for m=1:n_train
               name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber];
-              if D.verbose > 1, fprintf('cg_BrainAGE_GPR_ui: load %s\n',name); end
+              if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
               load(name);
               Y0    = [Y0; single(Y)]; clear Y
             end
             D.Y_test = [D.Y_test Y0]; clear Y0
           else
             name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data D.relnumber];
-            if D.verbose > 1, fprintf('cg_BrainAGE_GPR_ui: load %s\n',name); end
+            if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
             load(name);
             D.Y_test = [D.Y_test single(Y)]; clear Y
           end
@@ -805,7 +806,7 @@ for i = 1:numel(D.res_array)
           end
         end
                                       
-        [BrainAGE, ~, D] = cg_BrainAGE_GPR(D);
+        [BrainAGE, ~, D] = BA_gpr_core(D);
 
         % move on if training fa~iled
         if all(isnan(BrainAGE)) || std(BrainAGE)==0
@@ -967,19 +968,19 @@ for i = 1:numel(D.res_array)
   
         % ANOVA + T-Test
         if n_groups > 1
-          if exist('cg_anova1')
+          if exist('BA_anova1')
             group = ones(length(D.ind_groups{1}),1);
             for o = 2:n_groups
               group = [group; o*ones(length(D.ind_groups{o}),1)];
             end
-            Panova = cg_anova1(data,group,'off');
+            Panova = BA_anova1(data,group,'off');
             if D.verbose, fprintf('\nANOVA P-value: %f\n',Panova); end
   
             P = zeros(n_groups,n_groups);
   
             for o = 1:n_groups
               for p = 1:n_groups
-                [H,P(o,p)] = cg_ttest2(BrainAGE(D.ind_groups{o}),BrainAGE(D.ind_groups{p}),0.05,'left');
+                [H,P(o,p)] = BA_ttest2(BrainAGE(D.ind_groups{o}),BrainAGE(D.ind_groups{p}),0.05,'left');
               end
             end
               
@@ -1013,7 +1014,7 @@ for i = 1:numel(D.res_array)
             end
                 
           else
-            fprintf('Warning: cg_anova1 not found.\n');
+            fprintf('Warning: BA_anova1 not found.\n');
           end
   
         elseif isfield(D,'corr') % estimate correlation for one group
@@ -1083,14 +1084,14 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   end
   
   if n_groups > 1
-    if exist('cg_anova1')
-      Panova = cg_anova1(BA_weighted,group,'off');
+    if exist('BA_anova1')
+      Panova = BA_anova1(BA_weighted,group,'off');
       if D.verbose, fprintf('\nWeighted ANOVA P-value: %f\n',Panova); end
     
       P = zeros(n_groups,n_groups);
       for o = 1:n_groups
         for p = 1:n_groups
-          [H,P(o,p)] = cg_ttest2(BA_unsorted_weighted(D.ind_groups{o}),BA_unsorted_weighted(D.ind_groups{p}),0.05,'left');
+          [H,P(o,p)] = BA_ttest2(BA_unsorted_weighted(D.ind_groups{o}),BA_unsorted_weighted(D.ind_groups{p}),0.05,'left');
         end
       end
     
@@ -1124,7 +1125,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
       end
   
     else
-      fprintf('cg_anova1 not found.\n');
+      fprintf('BA_anova1 not found.\n');
     end
   end
   BrainAGE = BA_weighted;
@@ -1353,7 +1354,7 @@ case 4   % Stacking: use GPR to combine models
     Y_test  = PredictedAge_ind(ind_test,:);
     
     % multivariate regression using GPR
-    PredictedAge = cg_GPR(Y_train, age(ind_train), Y_test, 10, 1);
+    PredictedAge = BA_gpr_core(Y_train, age(ind_train), Y_test, 10, 1);
     BA_weighted(ind_test) = PredictedAge-age(ind_test);
     
   end
@@ -1446,8 +1447,8 @@ for i = 1:max(site_adjust)
       
       % polynomial trend
       if D.trend_degree > 0
-        G = [ones(length(age(ind_site)),1) cg_polynomial(age(ind_site),D.trend_degree)];
-        G_indexed = [ones(length(age(ind_site_adjust)),1) cg_polynomial(age(ind_site_adjust),D.trend_degree)];
+        G = [ones(length(age(ind_site)),1) cat_stat_polynomial(age(ind_site),D.trend_degree)];
+        G_indexed = [ones(length(age(ind_site_adjust)),1) cat_stat_polynomial(age(ind_site_adjust),D.trend_degree)];
       % use just offset
       else
         G = ones(length(age(ind_site)),1);
