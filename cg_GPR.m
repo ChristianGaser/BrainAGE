@@ -37,10 +37,25 @@ function [mu, vr, model_gpr] = cg_GPR(x_train, y_train, x_test, meanhyp, likhyp,
 % The code uses many ideas from the great gpml toolbox by Carl Edward Rasmussen 
 % and Hannes Nickisch, but tries to implement only the really necessary steps
 % to speed up and save memory.
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 if nargin < 3
   error('At least 3 parameters have to be defined. Syntax: mu = cg_GPR(x_train, y_train, x_test, meanhyp, likhyp)');
 end
+
+% Define covariance function
+% Here we use a simple linear covariance function
+covfunc = @(x, y) x*y';
+
+% Define prior (constant) mean function
+meanfunc = @(x, mn) mn*ones(size(x,1),1);
 
 n_subj = numel(y_train);
 
@@ -52,13 +67,6 @@ if xs ~= n_subj
 end
 
 n_voxel = size(x_train,2);
-
-% Define covariance function
-% Here we use a simple linear covariance function
-covfunc = @(x, y) x*y';
-
-% Define prior (constant) mean function
-meanfunc = @(x, mn) mn*ones(size(x,1),1);
 
 % Set hyperparameters for mean and likelihood
 if nargin < 4

@@ -1,8 +1,13 @@
 function [Y, label, ind, dim, mappedY, mapping, beta] = cg_input_adjusted_data(V, resolution, confound, scaling, beta)
 % FORMAT [Y, label, ind, dim] = cg_input_adjusted_data(V)
-%_______________________________________________________________________
+% ______________________________________________________________________
+%
 % Christian Gaser
-% $Id: cg_input_adjusted_data.m 4 2018-10-17 08:57:46Z gaser $
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 % 1mm reference fields
 V0.mat = [1 0 0 -90; 0 1 0 -126; 0 0 1 -72; 0 0 0 1];
@@ -49,7 +54,7 @@ if nargin < 3
   confound = spm_input('Nuisance variables',1,'no|yes',[0 1],1);
 end
 
-if confound | length(confound) == n_subjects_all
+if confound %| length(confound) == n_subjects_all
   if (length(confound) ~= n_subjects_all)
     G = spm_input('Nuisance variables','+1','r',[],[n_subjects_all Inf]);
   else
@@ -120,6 +125,7 @@ for sl=1:V0.dim(3)
     for j=1:n_samples
       y = zeros(n_subjects(j), length(ind0));
         for i = 1:n_subjects(j)
+
             try
               d = spm_slice_vol(V{j}(i),M1,V0.dim(1:2),1);
             catch
@@ -135,7 +141,7 @@ for sl=1:V0.dim(3)
         end
       yslice = [yslice; y];
     end
-    if confound | length(confound) == n_subjects_all
+    if confound %| length(confound) == n_subjects_all
       if nargin == 5
         beta_slice = beta{sl};
       else

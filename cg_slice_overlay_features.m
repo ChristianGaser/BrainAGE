@@ -1,5 +1,14 @@
 function cg_slice_overlay_features
 
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
+
 addpath ~/spm/slice_overlay
 
 OV.reference_image = '../../avg_wmIXI547.nii'; % anatomical image to underlay

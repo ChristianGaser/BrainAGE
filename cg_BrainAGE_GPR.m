@@ -53,8 +53,14 @@ function [BrainAGE,PredictedAge,D] = cg_BrainAGE_GPR(D)
 % D.eqdist.range    - matrix 2 x 2 which defines the age range and sex range for equalization
 % D.eqdist.tol      - vector of size 2 that defines tolerance between mean value of
 %                     age_test and age_train and male_test and male_train
-%_______________________________________________________________________
+% ______________________________________________________________________
+%
 % Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 if ~isfield(D,'Y_test')
   error('D.Y_test not defined');

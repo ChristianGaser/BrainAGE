@@ -1,8 +1,13 @@
 function u=cg_polynomial(x,p)
 % polynomial expansion and orthogonalization of function x
-%_______________________________________________________________________
+% ______________________________________________________________________
+%
 % Christian Gaser
-% $Id: cg_polynomial.m 4 2015-08-28 08:57:46Z gaser $
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 if nargin < 2, p = 1; end
 

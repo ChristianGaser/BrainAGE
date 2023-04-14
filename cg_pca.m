@@ -26,6 +26,14 @@ function [mappedX, mapping] = cg_pca(X, no_dims, method)
 %
 % Modifed version pca.m from Laurens van der Maaten to also allow svd which is
 % more accurate and ensures compatibility between systems
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 if ~exist('no_dims', 'var')
 		no_dims = 2;

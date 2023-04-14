@@ -32,12 +32,19 @@ function [p,anovatab,stats] = cg_anova1(x,group,displayopt,extra)
 %   with the MULTCOMPARE function.
 %
 %   See also ANOVA2, ANOVAN, BOXPLOT, MANOVA1, MULTCOMPARE.
-
+%
 %   Reference: Robert V. Hogg, and Johannes Ledolter, Engineering Statistics
 %   Macmillan 1987 pp. 205-206.
-
 %   Copyright 1993-2010 The MathWorks, Inc.
 %   $Revision: 1.1.8.2 $  $Date: 2010/03/22 04:41:18 $
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 classical = 1;
 nargs = nargin;

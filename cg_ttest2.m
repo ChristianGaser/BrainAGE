@@ -65,6 +65,14 @@ function [h,p,ci,stats] = cg_ttest2(x,y,alpha,tail,vartype,dim)
 
 %   Copyright 1993-2010 The MathWorks, Inc.
 %   $Revision: 1.1.8.2 $  $Date: 2010/04/24 18:31:38 $
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 if nargin < 2
     error('stats:ttest2:TooFewInputs','Requires at least two input arguments');

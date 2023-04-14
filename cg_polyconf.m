@@ -40,6 +40,14 @@ function [y, delta] = polyconf(p,x,S,varargin)
 
 %   Copyright 1993-2009 The MathWorks, Inc.
 %   $Revision: 1.1.8.1 $  $Date: 2010/03/16 00:16:53 $
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 error(nargchk(2,Inf,nargin,'struct'));
 

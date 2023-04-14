@@ -112,9 +112,14 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_GPR_u
 % BrainAGE            - BrainAGE values sorted by group definitions in D.ind_groups 
 % BrainAGE_unsorted   - unsorted (originally ordered) BrainAGE values
 % BrainAGE_all        - array of BrainAGE values for all models sorted by group definitions in D.ind_groups
-%_______________________________________________________________________
+% ______________________________________________________________________
+%
 % Christian Gaser
-% $Id: cg_BrainAGE_GPR_ui.m 4 2015-08-28 08:57:46Z gaser $
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 global min_hyperparam
 
@@ -344,7 +349,7 @@ if ~isfield(D,'run_kfold')
     fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
   end
   fprintf('PCA:          \t%d (method: %s)\n',D.PCA,D.PCA_method);
-  fprintf('Trend correct:\t%d\n',D.trend_degree);
+  fprintf('Trend method:\t%d\n',D.trend_method);
   fprintf('Age-Range:    \t%g-%g\n',D.age_range(1),D.age_range(2));
   fprintf('--------------------------------------------------------------\n');
 end
@@ -1044,8 +1049,9 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   BA_weighted = BA_unsorted_weighted(ind_groups);
   MAE_ctl_weighted = mean(abs(BA_unsorted_weighted(D.ind_adjust)));
 
+  cc = corrcoef(BA_unsorted_weighted+age,age);
   fprintf('-----------------------------------------------------------------\n'); 
-  fprintf('weighted MAE (testdata): %g\n',MAE_ctl_weighted); 
+  fprintf('weighted MAE/correlation (testdata): %g/%g\n',MAE_ctl_weighted,cc(1,2)); 
   fprintf('-----------------------------------------------------------------\n'); 
   
   if D.verbose

@@ -120,9 +120,14 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = cg_BrainAGE_ui(D)
 % BrainAGE            - BrainAGE values sorted by group definitions in D.ind_groups 
 % BrainAGE_unsorted   - unsorted (originally ordered) BrainAGE values
 % BrainAGE_all        - array of BrainAGE values for all models sorted by group definitions in D.ind_groups
-%_______________________________________________________________________
+% ______________________________________________________________________
+%
 % Christian Gaser
-% $Id: cg_BrainAGE_ui.m 4 2015-08-28 08:57:46Z gaser $
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 % add spider paths
 if ~isfield(D,'spider_dir')

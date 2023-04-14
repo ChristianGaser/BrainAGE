@@ -25,12 +25,17 @@ function [sample_sel, c] = cg_equalize_distribution(sample_ref, sample_src, opts
 % sample_sel  - selected sample within opts.range and within opts.tol 
 %               compared to the mean 
 % c           - vector of selected sample values
-%_______________________________________________________________________
-% Christian Gaser
-% $Id: cg_equalize_distribution.m $
-
+%
 % Uses the function hungarian from Niclas Borlin for Hungarian Method
 % hungarian.m v1.0  96-06-14
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
+% $Id$
 
 if nargin < 3 || ~isfield(opts,'tol')
   fprintf('At least opts.tol should be defined\n\n');
