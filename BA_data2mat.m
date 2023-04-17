@@ -66,7 +66,7 @@ if nargin < 2
       for k = 1:numel(seg_default)
         fprintf('\ns%d%s_%dmm: ',fwhm_default{i},seg_default{k},res_default{j});
         para = sprintf('(%s,%d,%d,''%s'')','D',fwhm_default{i},res_default{j},seg_default{k});
-        eval(['save_data_mat' para])
+        eval(['BA_data2mat' para])
       end
     end
   end
