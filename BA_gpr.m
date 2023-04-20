@@ -4,23 +4,6 @@ function [BrainAGE,PredictedAge,D] = BA_gpr(D)
 %
 % D.Y_test          - volume data for estimation
 % D.age_test        - age of each volume 
-% D.training_sample - training sample (e.g. {'IXI547','OASIS316'}
-%     Healthy adults:
-%         IXI547     - IXI-database
-%         IXI410     - IXI-database (1:4:547 removed)
-%         OASIS316   - OASIS
-%         OASIS_3381 - OASIS3
-%         Ship1000   - SHIP (internal use only)
-%     ADNI231Normal  - ADNI Normal-sc-1.5T 
-%       UKB_x_r1700  - UKB-data sample x with release r1700 
-%
-%     Children data:
-%         NIH394     - NIH objective 1
-%         NIH876     - NIH release 4.0
-%         NIH755     - NIH release 5.0
-%
-%     Children + adults:
-%         fCONN772  - fcon-1000 (8-85 years)
 %
 % D.hyperparam      - GP hyperparameters
 % D.seg             - segmentation
@@ -36,6 +19,7 @@ function [BrainAGE,PredictedAge,D] = BA_gpr(D)
 %                     if not defined use min/max of age of test data
 % D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
 % D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
+% D.RVR             - use old RVR method
 % D.PCA             - apply PCA as feature reduction (default=1)
 % D.PCA_method      - method for PCA
 %                    'eig' Eigenvalue Decomposition of the covariance matrix (faster but less accurate, for compatibiliy)
@@ -78,6 +62,16 @@ end
 
 if ~isfield(D,'hyperparam')
   D.hyperparam = struct('mean', 100, 'lik', -1);
+end
+
+if ~isfield(D,'RVR')
+  D.RVR = 1;
+else
+  D.RVR = 0;
+end
+
+if ~isfield(D,'PCA')
+  D.PCA = 1;
 end
 
 if ~isfield(D,'PCA_method')
@@ -142,6 +136,27 @@ Y_train    = [];
 Y_train2   = [];
 age_train  = [];
 male_train = [];
+
+if D.RVR
+  if ~isfield(D,'spider_dir')
+    D.spider_dir = '/Volumes/UltraMax/spider';
+  end
+
+  addpath(D.spider_dir)
+  spider_path;
+  
+  % KERNEL -> RVR
+  s = relvm_r(kernel('poly',1));
+  
+  % get rid of excessive output
+  s.algorithm.verbosity = D.verbose;
+  s.maxIts = 250;
+
+  % use smaller beta for larger training samples to increase stability
+  if isfield(s,'beta0') && (numel(age_train) > 1000)
+    s.beta0 = 0.1;
+  end
+end
 
 % don't load training sample if test sample is the same (e.g. for k-fold validation)
 if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
@@ -264,7 +279,7 @@ if ~isinf(D.threshold_std)
   n_thresholded = min(find(mean_cov_sorted < threshold_cov));
 
   ind_removed = find(mean_cov < threshold_cov);
-  if D.verbose, fprintf('%d subjects removed because their mean covariance was deviating more than %g standard deviation from mean.\n',length(ind_removed),D.threshold_std); end
+  if D.verbose > 1, fprintf('%d subjects removed because their mean covariance was deviating more than %g standard deviation from mean.\n',length(ind_removed),D.threshold_std); end
 
   age_train(ind_removed)  = [];
   male_train(ind_removed) = [];
@@ -316,11 +331,11 @@ end
 
 % give warning if age range differs by more than two years
 if (min(age_train)-min(D.age_test) > 2) || (max(D.age_test)>max(age_train) > 2)
-  fprintf('Warning: Defined age range of training sample (%3.1f..%3.1f years) differ from real age range of sample %g..%g\n',...
+  fprintf('Warning: Defined age range of training sample (%3.1f..%3.1f years) differs from real age range of sample %g..%g\n',...
       min(age_train),max(age_train),min(D.age_test),max(D.age_test));
 end
 
-if D.verbose
+if D.verbose > 1
   fprintf('%d subjects used for training (age %3.1f..%3.1f years)\n',length(age_train),min(age_train),max(age_train));
   fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(age_train),std(age_train),sum(male_train),length(age_train)-sum(male_train));
 end
@@ -364,20 +379,40 @@ else
 end
 
 % Regression using GPR
-
-if D.PCA && D.p_dropout
-  PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
-          D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
+if ~D.RVR
+  if D.PCA && D.p_dropout
+    PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
+            D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
+  else
+    PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
+            D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
+  end
+  BrainAGE = PredictedAge-D.age_test;
 else
-  PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
-          D.hyperparam.mean, D.hyperparam.lik, D.p_dropout);
+  % Regression using RVR
+
+  d  = data(mapped_train, age_train);
+  t1 = data(mapped_test, D.age_test);
+  
+  [est,model] = rvr_training(s,d);
+  
+  pred1 = test(model,t1);
+  PredictedAge = pred1.X;
+  
+  % sometimes chol function in rvr_training fails and we obtain zero values
+  % for EstimatedAge that will be replaced by NaNs
+  if std(PredictedAge) == 0
+    BrainAGE = NaN(size(D.age_test));
+    PredictedAge = NaN(size(D.age_test));
+  else
+    BrainAGE = PredictedAge-D.age_test;
+  end
 end
 
-BrainAGE = PredictedAge-D.age_test;
 
 if ~isempty(D.nuisance)
   G = [ones(length(D.age_test),1) D.nuisance];
-  if D.verbose, fprintf('Remove effect of nuisance parameter\n'); end
+  if D.verbose > 1, fprintf('Remove effect of nuisance parameter\n'); end
  
   % estimate beta
   Beta = pinv(G)*BrainAGE;
