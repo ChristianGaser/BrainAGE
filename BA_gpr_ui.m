@@ -160,8 +160,6 @@ if ~isfield(D,'PCA')
 end
 
 if ~isfield(D,'RVR')
-  D.RVR = 1;
-else
   D.RVR = 0;
 end
 
@@ -355,6 +353,9 @@ if ~isfield(D,'run_kfold')
   end
   if D.p_dropout
     fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
+  end
+  if D.RVR
+    fprintf('RVR:\t%d\n',D.RVR);
   end
   fprintf('PCA:          \t%d (method: %s)\n',D.PCA,D.PCA_method);
   fprintf('Trend method:\t%d\n',D.trend_method);

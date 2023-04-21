@@ -65,8 +65,6 @@ if ~isfield(D,'hyperparam')
 end
 
 if ~isfield(D,'RVR')
-  D.RVR = 1;
-else
   D.RVR = 0;
 end
 
