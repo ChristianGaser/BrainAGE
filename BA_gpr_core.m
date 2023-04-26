@@ -135,7 +135,8 @@ for i = 1:n_mc
       % apply PCA mapping to remaining voxels of test data
       mapped_test = (x_test_org(:,ind) - repmat(mapping.mean(ind), [size(x_test_org, 1) 1])) * mapping.M(ind,:);
       mapped_test  = (mapped_test - mapping.mn)/(mapping.mx - mapping.mn);
-      Ks = covfunc(x_train, mapped_test);
+      Ks = covfunc(x_train, double(mapped_test));
+      clear mapped_test 
     else
       % exclude random voxels according to dropout probability
       ind = randperm(n_voxel) > p_dropout*n_voxel;

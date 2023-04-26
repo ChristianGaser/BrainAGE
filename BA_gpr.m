@@ -113,7 +113,7 @@ if ~isfield(D,'p_dropout')
 end
 
 if ~isfield(D,'dir')
-  D.dir = '/Volumes/UltraMax/BrainAGE_core';
+  D.dir = '/Volumes/UltraMax/BrainAGE';
 end
 
 if ~isfield(D,'threshold_std')
@@ -162,7 +162,7 @@ if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
   Y_train    = D.Y_test;
   age_train  = D.age_test;
   age        = D.age_test;
-  if isfield(D,'male_test')
+  if isfield(D,'male_test') && ~isempty(D.male_test)
     male = D.male_test;
     male_train = D.male_test; 
   else
@@ -359,9 +359,10 @@ if D.PCA
   mapped_test = (D.Y_test - repmat(mapping.mean, [size(D.Y_test, 1) 1])) * mapping.M;
   if ~D.p_dropout, clear mapping; end
   
+  % we have to use double format for GPR
   mapped_train = double(mapped_train);
   mapped_test  = double(mapped_test);
-  
+
   % ensure range 0..1
   mn = min(mapped_train(:));
   mx = max(mapped_train(:));
@@ -372,6 +373,7 @@ if D.PCA
   mapping.mx = mx;
   
 else
+  % we have to use double format for GPR
   mapped_train = double(Y_train); clear Y_train
   mapped_test  = double(D.Y_test);
 end
@@ -392,7 +394,7 @@ else
   d  = data(mapped_train, age_train);
   t1 = data(mapped_test, D.age_test);
   
-  [est,model] = rvr_training(s,d);
+  [~,model] = rvr_training(s,d);
   
   pred1 = test(model,t1);
   PredictedAge = pred1.X;

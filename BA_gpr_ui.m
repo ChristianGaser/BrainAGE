@@ -355,11 +355,11 @@ if ~isfield(D,'run_kfold')
     fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
   end
   if D.RVR
-    fprintf('RVR:\t%d\n',D.RVR);
+    fprintf('RVR:          \t%d\n',D.RVR);
   end
-  fprintf('PCA:          \t%d (method: %s)\n',D.PCA,D.PCA_method);
-  fprintf('Trend method:\t%d\n',D.trend_method);
-  fprintf('Age-Range:    \t%g-%g\n',D.age_range(1),D.age_range(2));
+  fprintf('PCA:           \t%d (method: %s)\n',D.PCA,D.PCA_method);
+  fprintf('Trend method:  \t%d\n',D.trend_method);
+  fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
   fprintf('--------------------------------------------------------------\n');
 end
 
