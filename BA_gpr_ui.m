@@ -6,7 +6,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %     Healthy adults:
 %            IXI547 - IXI-database
 %          OASIS316 - OASIS
-%       OASIS3_1776 - OASIS3
+%       OASIS3_1752 - OASIS3
 %         CamCan652 - CamCan
 %          Ship1000 - SHIP (internal use only)
 %     ADNI231Normal - ADNI Normal-sc-1.5T 
@@ -20,7 +20,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %     Children + adults:
 %         fCONN772  - fcon-1000 (8-85 years)
 %
-% D.hyperparam      - GP hyperparameters
+% D.hyperparam      - GPR hyperparameters
 % D.data            - test sample for BrainAGE estimation
 % D.seg_array       - segmentation
 %                     {'rp1'} use GM
@@ -51,6 +51,9 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     0 skip trend correction (set trend_degree to -1)
 %                     1 use BrainAGE for trend correction (default)
 %                     2 use predicted age for trend correction (as used in Cole et al. 2018)
+% D.trend_ensemble  - apply trend correction for each ensemble separately before bagging/stacking
+%                     0 skip trend correction for each ensemble (default)
+%                     1 apply trend correction for each ensemble
 % D.RVR             - use old RVR method
 % D.PCA             - apply PCA as feature reduction (default=1), values > 1 define number of PCA components
 % D.PCA_method      - method for PCA
@@ -135,6 +138,10 @@ end
 
 if ~isfield(D,'trend_method')
   D.trend_method = 1;
+end
+
+if ~isfield(D,'trend_ensemble')
+  D.trend_ensemble = 0;
 end
 
 if ~isfield(D,'age_range')
@@ -318,6 +325,9 @@ end
 
 % check whether contrast was defined for ensemble=3
 if isfield(D,'ensemble')
+  if numel(D.ensemble) > 1 && ~isfield(D,'k_fold')
+    error('Multiple ensembles are only allowed for k-fold validation.');
+  end
   if D.ensemble(1) == 3 && ~isfield(D,'contrast')
     error('D.contrast has to be defined.');
   end
@@ -863,7 +873,7 @@ for i = 1:numel(D.res_array)
         end
         
         % dont' apply trend correction during k-fold validation
-        if D.trend_degree >= 0 && ~isfield(D,'k_fold')
+        if D.trend_ensemble && D.trend_degree >= 0 && ~isfield(D,'k_fold')
           BrainAGE = apply_trend_correction(BrainAGE,D.age_test,D);
         end
         if isfield(D,'define_cov')
@@ -1499,7 +1509,7 @@ for i = 1:max(site_adjust)
       if verbose, fprintf('Remove trend degree %d using %d subjects of site %d.\n',D.trend_degree,length(ind_site_adjust),i); end
         
       % estimate beta only for indexed data (e.g. control subjects)
-      Beta = pinv(G_indexed)*Y(ind_site_adjust);
+      Beta = pinv(G_indexed)*Y(ind_site_adjust)
       
       % and remove effects for all data
       GBeta = G*Beta;
