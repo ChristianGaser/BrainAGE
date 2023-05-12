@@ -17,6 +17,7 @@ function BA_data2mat(D,fwhm,res,seg)
 % D.res       - cell array of resampling resolutions (default: {4,8})
 % D.seg       - cell array of segmentations  (default: {'rp1','rp2'})
 % D.subfolder - subfolder where segmentations are saved  (default: [seg release])
+% D.add_str   - add string to default subfolder where segmentations are saved  (default: '')
 %
 % Example:
 % D.fwhm = {8};
@@ -88,7 +89,7 @@ end
 % default subfolder is string such as 'rp1_r1840' based on segmentation and
 % release number
 if isfield(D,'subfolder'), subfolder = D.subfolder;
-else, subfolder = [seg D.release]; end
+else, subfolder = [seg D.release D.add_str]; end
 
 if isfield(D,'male'), male = D.male;
 else, male = []; end
