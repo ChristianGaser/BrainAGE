@@ -5,7 +5,7 @@ function [BrainAGE,PredictedAge,D] = BA_gpr(D)
 % D.Y_test          - volume data for estimation
 % D.age_test        - age of each volume 
 %
-% D.hyperparam      - GP hyperparameters
+% D.hyperparam      - GPR hyperparameters (.mean and .lik)
 % D.seg             - segmentation
 %                     {'rp1'} use GM
 %                     {'rp2'} use WM
@@ -17,6 +17,8 @@ function [BrainAGE,PredictedAge,D] = BA_gpr(D)
 %                     [0 Inf] use all data
 %                     [50 80] use age range of 50..80
 %                     if not defined use min/max of age of test data
+% D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
+%                     harmonize data using ComCAT. A vector with coding of the scanners is required (EXPERIMENTAL!).
 % D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
 % D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
 % D.RVR             - use old RVR method
@@ -162,6 +164,7 @@ if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
   Y_train    = D.Y_test;
   age_train  = D.age_test;
   age        = D.age_test;
+  
   if isfield(D,'male_test') && ~isempty(D.male_test)
     male = D.male_test;
     male_train = D.male_test; 
@@ -169,8 +172,19 @@ if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
     male = ones(size(age));
     male_train = ones(size(age)); 
   end
+  
+  if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+    D_comcat = ones(size(age_train));
+  end
 else
   load_training_sample = true;
+  
+  % D.comcat can be also just defined as single value that indicates
+  % that the comcat-vector that defines the different samples will be
+  % automatically build
+  if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+    D_comcat = [];
+  end
 end
 
 % load training sample(s)
@@ -190,6 +204,10 @@ for i = 1:n_training_samples
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
 
+    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+      D_comcat = [D_comcat; i*ones(size(age))];
+    end
+    
     if ~exist('male','var')
       male = ones(size(age));
     end
@@ -212,8 +230,21 @@ for i = 1:n_training_samples
     end
 
   end  
-end
   
+  % show age histogram
+  if D.verbose > 1
+    figure(20)
+    hist(age_train,100);
+    title('Age (training) distribution')
+    xlabel('Age [years]');
+    xlabel('Frequency');
+  end
+end
+
+if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+  D.comcat = D_comcat;
+end
+
 if length(D.seg) > 1 && load_training_sample
   Y_train = [Y_train Y_train2]; clear Y_train2
 end
@@ -223,7 +254,11 @@ if  isfield(D,'comcat') && load_training_sample
   if length(D.comcat) ~= length(age_train)
     error('Size of site definition in D.comcat (n=%d) differs from sample size (n=%d)\n',length(D.comcat),length(age_train));
   end
-  Y_train = cat_stat_comcat(Y_train, D.comcat, age_train, 0, 3, 1);
+  fprintf('Apply ComCat for %d sites\n',numel(unique([D.comcat; (max(D.comcat)+1)*ones(numel(D.age_test),1)])));
+  tmp = cat_stat_comcat([Y_train; D.Y_test], [D.comcat; (max(D.comcat)+1)*ones(numel(D.age_test),1)],[],[age_train; D.age_test], 0, 1, 0, 0);
+  Y_train  = tmp(1:numel(age_train),:);
+  D.Y_test = tmp(numel(age_train)+1:end,:);
+  clear tmp
 end
 
 % use only indicated subjects (e.g. for gender-wise training or k-fold cross-validation)
@@ -231,7 +266,11 @@ end
 if isfield(D,'ind_train')
   Y_train    = Y_train(D.ind_train,:);
   age_train  = age_train(D.ind_train);
-  male_train = male_train(D.ind_train);
+  try
+    male_train = male_train(D.ind_train);
+  catch
+    male_train = nan(size(D.ind_train));
+  end
 end
 
 ind_age    = find(age_train >= D.age_range(1) & age_train <= D.age_range(2));

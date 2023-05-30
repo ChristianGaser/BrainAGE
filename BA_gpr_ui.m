@@ -4,23 +4,25 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %
 % D.train_array     - cell array of training samples
 %     Healthy adults:
-%            IXI547 - IXI-database
+%            IXI547 - IXI
 %          OASIS316 - OASIS
-%       OASIS3_1752 - OASIS3
+%       OASIS3_1752 - OASIS3 (all time points of 549 subjects)
+%        OASIS3_549 - OASIS3 (only last time point)
 %         CamCan652 - CamCan
-%          Ship1000 - SHIP (internal use only)
+%           SALD494 - SALD
+%           NKIe629 - NKIe
 %     ADNI231Normal - ADNI Normal-sc-1.5T 
-%       UKB_x_r1700 - UKB-data sample x with release r1700 
+%       UKB_x_Jena  - UKB-data sample x (n~=1548) 
 %
 %     Children data:
 %            NIH394 - NIH objective 1
-%            NIH876 - NIH release 4.0
+%            NIH879 - NIH release 4.0
 %            NIH755 - NIH release 5.0
 %
 %     Children + adults:
 %         fCONN772  - fcon-1000 (8-85 years)
 %
-% D.hyperparam      - GPR hyperparameters
+% D.hyperparam      - GPR hyperparameters (.mean and .lik)
 % D.data            - test sample for BrainAGE estimation
 % D.seg_array       - segmentation
 %                     {'rp1'} use GM
@@ -42,7 +44,9 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     If this parameter is empty this ensures that no site-specific adjustment is made even for multiple
 %                     training data that are combined with a "+". 
 % D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
-%                     harmonize data using ComCAT. A vector with coding of the scanners is required (EXPERIMENTAL!).
+%                     harmonize data using ComCAT. A vector with coding of the scanners is required or if ComCat will be only used to correct between 
+%                     the different training samples and the test sample a single value can be also used and the vector defining the samples will 
+%                     be automatically build (EXPERIMENTAL!).
 % D.ind_groups      - define indices of groups, if D.ind_adjust is not given, then the first group of this index will
 %                     be used for adjusting data according to trend defined with D.trend_degree
 % D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
@@ -285,19 +289,41 @@ if ~isfield(D,'n_data')
 
   % find potential "+" indicating to combine training sample
   ind_plus = strfind(D.data,'+');
+  
   if ~isempty(ind_plus)
+    
+    % D.comcat can be also just defined as single value that indicates
+    % that the comcat-vector that defines the different samples will be
+    % automatically build
+    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+      D_comcat = [];
+    end
+  
     age0 = [];
     ind_plus = [0 ind_plus length(D.data)+1];
     n_train = numel(ind_plus)-1;
+    
     for l=1:n_train
       load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
-      age0 = [age0; age]; 
+      age0 = [age0; age];
+      if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+        D_comcat = [D_comcat; l*ones(size(age))];
+      end
     end
+
+    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+      D.comcat = D_comcat;
+    end
+    
     age = age0;
     D.n_data = numel(age);
   else
     load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber],'age');
     D.n_data = numel(age);
+
+    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1 && strcmp(D.train_array{1},D.data)
+      D.comcat = ones(size(age));
+    end
   end
 end
 
@@ -804,12 +830,15 @@ for i = 1:numel(D.res_array)
         if D.verbose > 1, fprintf('\n'); end
         
         % apply comcat harmonization while preserving age effects
-        if isfield(D,'comcat')
+        % do this here only if training and test data are the sae (i.e. k-fold validation)
+        % otherwise apply comcat in BA_gpr.m
+        if isfield(D,'comcat') && strcmp(D.train_array{1},D.data)
           if length(D.comcat) ~= length(D.age_test)
             error('Size of site definition in D.comcat (n=%d) differs from sample size (n=%d)\n',...
               length(D.comcat),length(D.age_test));
           end
-          D.Y_test = cat_stat_comcat(D.Y_test, D.comcat, [], D.age_test, 0, 3, 1);
+         fprintf('Apply ComCat for %d site(s)\n',numel(unique([D.comcat])));
+          D.Y_test = cat_stat_comcat(D.Y_test, D.comcat, [], D.age_test, 0, 3, 0, 1);
         end
         
         if ~isfield(D,'ind_groups')
@@ -1509,7 +1538,7 @@ for i = 1:max(site_adjust)
       if verbose, fprintf('Remove trend degree %d using %d subjects of site %d.\n',D.trend_degree,length(ind_site_adjust),i); end
         
       % estimate beta only for indexed data (e.g. control subjects)
-      Beta = pinv(G_indexed)*Y(ind_site_adjust)
+      Beta = pinv(G_indexed)*Y(ind_site_adjust);
       
       % and remove effects for all data
       GBeta = G*Beta;
