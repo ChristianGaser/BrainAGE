@@ -154,6 +154,7 @@ if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
   Y_train    = D.Y_test;
   age_train  = D.age_test;
   age        = D.age_test;
+  
   if isfield(D,'male_test') && ~isempty(D.male_test)
     male = D.male_test;
     male_train = D.male_test; 
@@ -161,8 +162,19 @@ if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
     male = ones(size(age));
     male_train = ones(size(age)); 
   end
+  
+  if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+    D_comcat = ones(size(age_train));
+  end
 else
   load_training_sample = true;
+  
+  % D.comcat can be also just defined as single value that indicates
+  % that the comcat-vector that defines the different samples will be
+  % automatically build
+  if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+    D_comcat = [];
+  end
 end
 
 % load training sample(s)
@@ -181,7 +193,10 @@ for i = 1:n_training_samples
     load(name);
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
-
+    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+      D_comcat = [D_comcat; i*ones(size(age))];
+    end
+    
     if ~exist('male','var')
       male = ones(size(age));
     end
@@ -204,17 +219,8 @@ for i = 1:n_training_samples
     end
 
   end  
-  
-  % show age histogram
-  if D.verbose > 1
-    figure(20)
-    hist(age_train,100);
-    title('Age (training) distribution')
-    xlabel('Age [years]');
-    xlabel('Frequency');
-  end
 end
-  
+
 if length(D.seg) > 1 && load_training_sample
   Y_train = [Y_train Y_train2]; clear Y_train2
 end
