@@ -4,23 +4,25 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %
 % D.train_array     - cell array of training samples
 %     Healthy adults:
-%            IXI547 - IXI-database
+%            IXI547 - IXI
 %          OASIS316 - OASIS
-%       OASIS3_1752 - OASIS3
+%       OASIS3_1752 - OASIS3 (all time points of 549 subjects)
+%        OASIS3_549 - OASIS3 (only last time point)
 %         CamCan652 - CamCan
-%          Ship1000 - SHIP (internal use only)
+%           SALD494 - SALD
+%           NKIe629 - NKIe
 %     ADNI231Normal - ADNI Normal-sc-1.5T 
-%       UKB_x_r1700 - UKB-data sample x with release r1700 
+%       UKB_x_Jena  - UKB-data sample x (n~=1548) 
 %
 %     Children data:
 %            NIH394 - NIH objective 1
-%            NIH876 - NIH release 4.0
+%            NIH879 - NIH release 4.0
 %            NIH755 - NIH release 5.0
 %
 %     Children + adults:
 %         fCONN772  - fcon-1000 (8-85 years)
 %
-% D.hyperparam      - GPR hyperparameters
+% D.hyperparam      - GPR hyperparameters (.mean and .lik)
 % D.data            - test sample for BrainAGE estimation
 % D.seg_array       - segmentation
 %                     {'rp1'} use GM
@@ -67,12 +69,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.k_fold_reps     - Number of repeated k-fold cross-validation
 % D.k_fold_rand     - As default the age values for the training sample is sorted and every k-th data is selected for training to minimize age 
 %                     differences between training and test data. With k_fold_rand you can set the seed for the random number generator.
-% D.p_dropout       - Dropout probability to randomly exclude voxels/data points to implement an uncertainty-aware approach using a 
-%                     Monte-Carlo Dropout during inference. That means that during testing, voxels are randomly dropped out according 
-%                     to the dropout probabilities. This process is repeated multiple times, and each time, the model produces 
-%                     a different output. By averaging these outputs, we can obtain a more robust prediction and estimate the model's 
-%                     uncertainty in its predictions. A meaningful dropout probability is 0.1, which means that 10% of the data points 
-%                     are excluded. The default is 0.
 % D.ensemble        - ensemble method to combine different models
 %                     0 - Majority voting: use model with lowest MAE
 %                     1 - Weighted GLM average: use GLM estimation to estimate model weights to minimize MAE
@@ -233,11 +229,6 @@ if isfield(D,'k_fold_rand') && D.k_fold_reps > 1
   error('D.k_fold_rand cannot be used together with D.k_fold_reps because repeated k-fold would always use the same random numbers without variations.');
 end
 
-% set default for droput probability 
-if ~isfield(D,'p_dropout')
-  D.p_dropout = 0;
-end
-
 if iscell(D.data)
   D.data = char(D.data);
 end
@@ -360,9 +351,6 @@ if ~isfield(D,'run_kfold')
   end
   if isfield(D,'k_fold')
     fprintf('k-Fold:       \t%d\n',D.k_fold);
-  end
-  if D.p_dropout
-    fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
   end
   if D.RVR
     fprintf('RVR:          \t%d\n',D.RVR);
@@ -804,12 +792,15 @@ for i = 1:numel(D.res_array)
         if D.verbose > 1, fprintf('\n'); end
         
         % apply comcat harmonization while preserving age effects
-        if isfield(D,'comcat')
+        % do this here only if training and test data are the sae (i.e. k-fold validation)
+        % otherwise apply comcat in BA_gpr.m
+        if isfield(D,'comcat') && strcmp(D.train_array{1},D.data)
           if length(D.comcat) ~= length(D.age_test)
             error('Size of site definition in D.comcat (n=%d) differs from sample size (n=%d)\n',...
               length(D.comcat),length(D.age_test));
           end
-          D.Y_test = cat_stat_comcat(D.Y_test, D.comcat, [], D.age_test, 0, 3, 1);
+         fprintf('Apply ComCat for %d site(s)\n',numel(unique([D.comcat])));
+          D.Y_test = cat_stat_comcat(D.Y_test, D.comcat, [], D.age_test, 0, 3, 0, 1);
         end
         
         if ~isfield(D,'ind_groups')
@@ -1509,7 +1500,7 @@ for i = 1:max(site_adjust)
       if verbose, fprintf('Remove trend degree %d using %d subjects of site %d.\n',D.trend_degree,length(ind_site_adjust),i); end
         
       % estimate beta only for indexed data (e.g. control subjects)
-      Beta = pinv(G_indexed)*Y(ind_site_adjust)
+      Beta = pinv(G_indexed)*Y(ind_site_adjust);
       
       % and remove effects for all data
       GBeta = G*Beta;

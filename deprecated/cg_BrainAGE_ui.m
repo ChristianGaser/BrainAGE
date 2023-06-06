@@ -789,7 +789,7 @@ for i = 1:numel(D.res_array)
             error('Size of site definition in D.comcat (n=%d) differs from sample size (n=%d)\n',...
               length(D.comcat),length(D.age_test));
           end
-          D.Y_test = cat_stat_comcat(D.Y_test, D.comcat, [], D.age_test, 0, 3, 1);
+          D.Y_test = cat_stat_comcat(D.Y_test, D.comcat, [], D.age_test, 0, 3, 0, 1);
         end
         
         if ~isfield(D,'ind_groups')

@@ -60,6 +60,8 @@ else, res_default  = {4,8}; end
 if isfield(D,'seg'), seg_default = D.seg;
 else, seg_default  = {'rp1','rp2'}; end
 
+if ~isfield(D,'add_str'), D.add_str = ''; end
+
 % go through the different resampling, smoothing sizes and segmentations
 if nargin < 2
   for i = 1:numel(fwhm_default)
