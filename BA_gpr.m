@@ -193,6 +193,7 @@ for i = 1:n_training_samples
     load(name);
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
+    
     if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
       D_comcat = [D_comcat; i*ones(size(age))];
     end
@@ -219,6 +220,10 @@ for i = 1:n_training_samples
     end
 
   end  
+end
+
+if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+  D.comcat = D_comcat;
 end
 
 if length(D.seg) > 1 && load_training_sample

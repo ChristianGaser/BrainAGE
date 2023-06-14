@@ -834,7 +834,7 @@ for i = 1:numel(D.res_array)
         n_groups = numel(D.ind_groups);
         
         if ~isfield(D,'groupcolor')
-          groupcolor = nejm;
+          groupcolor = cat_io_colormaps('nejm',n_groups);
         else
           groupcolor = D.groupcolor;
         end
@@ -888,7 +888,7 @@ for i = 1:numel(D.res_array)
         end
         
         % dont' apply trend correction during k-fold validation
-        if D.trend_ensemble && D.trend_degree >= 0 && ~isfield(D,'k_fold')
+        if (D.trend_ensemble || ~multiple_BA) && D.trend_degree >= 0 && ~isfield(D,'k_fold')
           BrainAGE = apply_trend_correction(BrainAGE,D.age_test,D);
         end
         if isfield(D,'define_cov')

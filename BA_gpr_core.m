@@ -80,9 +80,9 @@ clear L
 % initialize seed generator
 if exist('rng','file') == 2
   rng('default')
-  rng(i)
+  rng(1)
 else
-  rand('state',i);
+  rand('state',1);
 end
   
 Ks = covfunc(x_train, x_test);  
