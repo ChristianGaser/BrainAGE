@@ -1,9 +1,9 @@
-function [BrainAGE,PredictedAge,D] = BA_gpr(D)
-% [BrainAGE, PredictedAge ,D] = BA_gpr_ui(D)
+function [BrainAGE, PredictedAge, D] = BA_gpr(D)
+% [BrainAGE, PredictedAge, D] = BA_gpr_ui(D)
 % BrainAGE estimation using Gaussian Process Regression (GPR)
 %
-% D.Y_test          - volume data for estimation
-% D.age_test        - age of each volume 
+% D.Y_test          - data for estimation
+% D.age_test        - age of each data set 
 %
 % D.hyperparam      - GPR hyperparameters (.mean and .lik)
 % D.seg             - segmentation
@@ -12,16 +12,15 @@ function [BrainAGE,PredictedAge,D] = BA_gpr(D)
 %                     {'rp1,'rp2'} use both GM+WM
 % D.res             - spatial resolution of data
 % D.smooth          - smoothing size
-% D.relnumber       - VBM release (e.g. '_r432')
+% D.relnumber       - CAT12 release (e.g. '_r1840')
 % D.age_range       - age range of training data
 %                     [0 Inf] use all data
 %                     [50 80] use age range of 50..80
 %                     if not defined use min/max of age of test data
 % D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
 %                     harmonize data using ComCAT. A vector with coding of the scanners is required (EXPERIMENTAL!).
-% D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
 % D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
-% D.RVR             - use old RVR method
+% D.RVR             - use old RVR method (Spider toolbox necessary, where the toolbox path can be defined using D.spider_dir)
 % D.PCA             - apply PCA as feature reduction (default=1)
 % D.PCA_method      - method for PCA
 %                    'eig' Eigenvalue Decomposition of the covariance matrix (faster but less accurate, for compatibiliy)
@@ -35,6 +34,8 @@ function [BrainAGE,PredictedAge,D] = BA_gpr(D)
 % D.eqdist.range    - matrix 2 x 2 which defines the age range and sex range for equalization
 % D.eqdist.tol      - vector of size 2 that defines tolerance between mean value of
 %                     age_test and age_train and male_test and male_train
+% D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
+% D.mask            - define mask to additionally estimate regional BrainAGE values 
 % ______________________________________________________________________
 %
 % Christian Gaser
@@ -148,10 +149,12 @@ if D.RVR
   end
 end
 
+Y_test = D.Y_test;
+
 % don't load training sample if test sample is the same (e.g. for k-fold validation)
 if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
   load_training_sample = false;
-  Y_train    = D.Y_test;
+  Y_train    = Y_test;
   age_train  = D.age_test;
   age        = D.age_test;
   
@@ -198,7 +201,7 @@ for i = 1:n_training_samples
       D_comcat = [D_comcat; i*ones(size(age))];
     end
     
-    if ~exist('male','var')
+    if ~exist('male','var') || (exist('male','var') && isempty(male))
       male = ones(size(age));
     end
     male_train = [male_train; male];
@@ -216,10 +219,24 @@ for i = 1:n_training_samples
         end
         load(name);
       end
-      Y_train2   = [Y_train2; single(Y)]; clear Y
+      Y_train2 = [Y_train2; single(Y)]; clear Y
     end
 
   end  
+end
+
+if isfield(D,'mask')
+  [m,n] = size(Y_train);
+  if n ~= numel(D.mask)
+    error('Size mismatch for mask. There are %d entries necessary',n);
+  end
+  if ~islogical(D.mask)
+    D.mask = D.mask > 0.5;
+  end
+  
+  % restrict data for training and test to mask area
+  Y_train  = Y_train(:,D.mask);
+  Y_test = Y_test(:,D.mask);
 end
 
 if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
@@ -236,9 +253,9 @@ if  isfield(D,'comcat') && load_training_sample
     error('Size of site definition in D.comcat (n=%d) differs from sample size (n=%d)\n',length(D.comcat),length(age_train));
   end
   fprintf('Apply ComCat for %d sites\n',numel(unique([D.comcat; (max(D.comcat)+1)*ones(numel(D.age_test),1)])));
-  tmp = cat_stat_comcat([Y_train; D.Y_test], [D.comcat; (max(D.comcat)+1)*ones(numel(D.age_test),1)],[],[age_train; D.age_test], 0, 1, 0, 0);
+  tmp = cat_stat_comcat([Y_train; Y_test], [D.comcat; (max(D.comcat)+1)*ones(numel(D.age_test),1)],[],[age_train; D.age_test], 0, 1, 0, 0);
   Y_train  = tmp(1:numel(age_train),:);
-  D.Y_test = tmp(numel(age_train)+1:end,:);
+  Y_test = tmp(numel(age_train)+1:end,:);
   clear tmp
 end
 
@@ -256,7 +273,7 @@ end
 
 ind_age    = find(age_train >= D.age_range(1) & age_train <= D.age_range(2));
 age_train  = age_train(ind_age);
-male_train = male_train(ind_age);
+if ~isempty(male_train), male_train = male_train(ind_age); end
 Y_train    = Y_train(ind_age,:);
 
 % remove subjects where standard deviation of mean covariance > D.threshold_std
@@ -362,7 +379,7 @@ end
 mn = min(Y_train(:));
 mx = max(Y_train(:));
 Y_train  = (Y_train-mn)/(mx-mn);
-D.Y_test = (D.Y_test-mn)/(mx-mn);
+Y_test = (Y_test-mn)/(mx-mn);
 
 % PCA using training data only
 if D.PCA 
@@ -376,7 +393,7 @@ if D.PCA
   [mapped_train, mapping] = BA_pca(Y_train,n_PCA,D.PCA_method);
 
   clear Y_train
-  mapped_test = (D.Y_test - repmat(mapping.mean, [size(D.Y_test, 1) 1])) * mapping.M;
+  mapped_test = (Y_test - repmat(mapping.mean, [size(Y_test, 1) 1])) * mapping.M;
   clear mapping
   
   % we have to use double format for GPR
@@ -395,7 +412,7 @@ if D.PCA
 else
   % we have to use double format for GPR
   mapped_train = double(Y_train); clear Y_train
-  mapped_test  = double(D.Y_test);
+  mapped_test  = double(Y_test);
 end
 
 % Regression using GPR

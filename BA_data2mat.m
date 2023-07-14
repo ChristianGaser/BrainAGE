@@ -43,7 +43,6 @@ function BA_data2mat(D,fwhm,res,seg)
 % Departments of Neurology and Psychiatry
 % Jena University Hospital
 % ______________________________________________________________________
-% $Id$
 
 % add cat12 path if not already done
 if ~exist('cat_io_data2mat')

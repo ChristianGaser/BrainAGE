@@ -1,0 +1,5 @@
+An atlas of the human cerebral lobes in MNI305 coordinates. This is the atlas used in the article "Brain volumes and Val66Met polymorphism of the BDNF gene: local or global effects?" By R. Toro et al (2008)
+https://www.ncbi.nlm.nih.gov/pubmed/19205731
+
+Downloaded from:
+https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058

@@ -2,7 +2,15 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D] = BA_gpr_ui(D)
 % User interface for BrainAGE estimation in BA_gpr.m
 %
-% D.train_array     - cell array of training samples
+% D.data            - test sample for BrainAGE estimation
+% D.seg_array       - segmentations
+%                     {'rp1'} use GM
+%                     {'rp2'} use WM
+%                     {'rp1,'rp2'} use GM or WM
+%                     {'rp1+rp2'} use both GM+WM
+% D.res_array       - spatial resolution of data as char or cell (can be a cell array to try different values: {'4','8'})
+% D.smooth_array    - smoothing size as char or cell (can be a cell array to try different values: {'s4','s8'})
+% D.train_array     - cell array name(s) of training samples
 %     Healthy adults:
 %            IXI547 - IXI
 %          OASIS316 - OASIS
@@ -12,7 +20,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %           SALD494 - SALD
 %           NKIe629 - NKIe
 %     ADNI231Normal - ADNI Normal-sc-1.5T 
-%       UKB_x_Jena  - UKB-data sample x (n~=1548) 
 %
 %     Children data:
 %            NIH394 - NIH objective 1
@@ -22,21 +29,11 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %     Children + adults:
 %         fCONN772  - fcon-1000 (8-85 years)
 %
-% D.hyperparam      - GPR hyperparameters (.mean and .lik)
-% D.data            - test sample for BrainAGE estimation
-% D.seg_array       - segmentation
-%                     {'rp1'} use GM
-%                     {'rp2'} use WM
-%                     {'rp1,'rp2'} use GM or WM
-%                     {'rp1+rp2'} use both GM+WM
-% D.res_array       - spatial resolution of data as char or cell (can be a cell array to try different values: {'4','8'})
-% D.smooth_array    - smoothing size as char or cell (can be a cell array to try different values: {'s4','s8'})
-% D.relnumber       - VBM release (e.g. '_r432')
+% D.relnumber       - CAT12 release (e.g. '_r1840')
 % D.age_range       - age range of training data
 %                     [0 Inf] use all data (default)
 %                     [50 80] use age range of 50..80
 %                     if not defined use min/max of age of test data
-% D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
 % D.ind_adjust      - define indices for adjusting data according to trend defined with D.trend_degree
 %                     usually this is the control group that is used in order to adjust the data
 % D.site_adjust     - If data are acquired at different sites (e.g. using different scanners or sequences) the trend 
@@ -58,6 +55,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.trend_ensemble  - apply trend correction for each ensemble separately before bagging/stacking
 %                     0 skip trend correction for each ensemble (default)
 %                     1 apply trend correction for each ensemble
+% D.hyperparam      - GPR hyperparameters (.mean and .lik)
 % D.RVR             - use old RVR method
 % D.PCA             - apply PCA as feature reduction (default=1), values > 1 define number of PCA components
 % D.PCA_method      - method for PCA
@@ -95,6 +93,10 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     of GPR not only limited to BrainAGE
 % D.style           - plot-style: 1: old style with vertical violin-plot; 2: new style with horizontal density plot
 % D.groupcolor      - matrix with (group)-bar-color(s), use jet(numel(data)) or other color functions (nejm by default)
+% D.normalize_BA    - normalize BA values w.r.t. MAE to make BA less dependent from training sample (i.e. size) and scale 
+%                     it to MAE of 5 (default)
+% D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
+% D.atlas           - define atlas mat-file to additionally estimate regional BrainAGE values (use BA_atlas2mat to create atlas mat-file)
 %
 % Parameter search
 % ---------------
@@ -126,8 +128,17 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 global min_hyperparam
 
 % add cat12 path if not already done
-if ~exist('cat_stat_polynomial')
+if ~exist('cat_stat_polynomial','file')
   addpath(fullfile(spm('dir'),'toolbox','cat12'));
+end
+
+% use normalized BA as default and scale it to MAE of 5
+if ~isfield(D,'normalize_BA')
+  D.normalize_BA = 5;
+else
+  if D.normalize_BA == 1
+    D.normalize_BA = 5;
+  end
 end
 
 if ~isfield(D,'trend_degree')
@@ -238,6 +249,11 @@ end
 % consider old syntax and name
 if isfield(D,'n_fold') && ~isfield(D,'k_fold')
   D.k_fold = D.n_fold;
+end
+
+% if comcat is defined and set to 0 then remove this field
+if isfield(D,'comcat') && numel(D.comcat) == 1 &&  D.comcat == 0
+  D = rmfield(D,'comcat');
 end
 
 ensemble_str = {'Majority Voting (model with lowest MAE)',...
@@ -383,13 +399,16 @@ if ~isfield(D,'run_kfold')
   fprintf('Trend method:  \t%d\n',D.trend_method);
   fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
   fprintf('--------------------------------------------------------------\n');
+  if isfield(D,'atlas')
+    fprintf('Apply regional mask to data using %s.\n',D.atlas);
+  end
 end
 
 % run k-fold validation if no data field is given or validation with k_fold is defined
 if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) && ~isfield(D,'run_kfold')
   
   if isfield(D,'ensemble') && D.ensemble(1) == 3 && numel(D.ind_groups) < 1
-    error('Weighting=3 cannot be used within k-fold validation with more than one group.');
+    error('Ensemble=3 cannot be used within k-fold validation with more than one group.');
   end
 
   ind_adjust = D.ind_adjust;
@@ -506,25 +525,34 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       % prepare BA_gpr_ui parameters
       D.ind_groups  = {ind_test};
       D.ind_adjust  = ind_test;
-      D.ind_train   = ind_train;
+      if isfield(D,'fraction')
+        D.ind_train   = ind_train(1:D.fraction:end);
+      else
+        D.ind_train   = ind_train;
+      end
 
       % call nested loop
       [BA_fold_all, ~, ~, D] = BA_gpr_ui(D);
 
       if j == 1 && rep == 1
-        BA_all = zeros(D.n_data,D.k_fold,D.k_fold_reps,size(BA_fold_all,2));
+        BA_all = zeros(D.n_data,D.k_fold,D.k_fold_reps,D.n_regions,size(BA_fold_all,2)/D.n_regions);
       end
 
       % we keep entries for each loop because there might be some overlapping
       % entries
-      BA_all(ind_test,j,rep,:) = BA_fold_all;
+      BA_all(ind_test,j,rep,:,:) = reshape(BA_fold_all,size(BA_fold_all,1),D.n_regions,size(BA_fold_all,2)/D.n_regions);
     end
   end
   
   % we have to estimate the mean by using the sum and dividing by the
   % actual numbers of entries (~=0)
   n_entries = sum(BA_all(:,:,1)~=0,2);
-  BA_all = squeeze(sum(BA_all,2))./n_entries;
+  BA_all0 = squeeze(sum(BA_all,2))./n_entries;
+  BA_all = zeros(D.n_data,size(BA_fold_all,2)/D.n_regions,D.n_regions);
+  for k=1:D.n_data
+    BA_all(k,:,:) = squeeze(BA_all0(k,:,:))';
+  end
+
   if any(n_entries>1)
     if min(n_entries) == max(n_entries)
       fprintf('There are %d overlapping entries that were averaged.\n',max(n_entries)); 
@@ -578,9 +606,11 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
           fprintf('\n%s:\n',str_trend{i+1});
 
           MAE_weighted = mean(abs(BA_unsorted_weighted1));
-          cc = corrcoef(BA_unsorted_weighted1+age,age);
-          fprintf('Overall weighted MAE for %d-fold = %g\n',D.k_fold,MAE_weighted);
-          fprintf('Overall weighted correlation for %d-fold = %g\n',D.k_fold,cc(1,2));
+          cc = corrcoef([BA_unsorted_weighted1+age age]);
+          fprintf('Overall weighted MAE for %d-fold = ',D.k_fold);
+          fprintf('%g ',MAE_weighted); fprintf('\n');
+          fprintf('Overall weighted correlation for %d-fold = ',D.k_fold);
+          fprintf('%g ',cc(end,1:end-1)); fprintf('\n');
         end
         fprintf('\n===========================================================\n'); 
       end
@@ -593,17 +623,19 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       MAE_weighted = mean(abs(BA_unsorted_weighted0));
       D.MAE = [D.MAE MAE_weighted];
       if isfield(D,'define_cov')
-        cc = corrcoef(BA_unsorted_weighted0,age);
+        cc = corrcoef([BA_unsorted_weighted0 age]);
       else
-        cc = corrcoef(BA_unsorted_weighted0+age,age);
+        cc = corrcoef([BA_unsorted_weighted0+age age]);
       end
       fprintf('\n===========================================================\n'); 
       fprintf('%s (ensemble=%d)\n',ensemble_str{D0.ensemble+1},D0.ensemble);
       if ~isfield(D,'define_cov')
-        fprintf('Overall weighted MAE for %d-fold = %g \n',D.k_fold,MAE_weighted);
+        fprintf('Overall weighted MAE for %d-fold = ',D.k_fold);
+        fprintf('%g ',MAE_weighted); fprintf('\n');
       end
-      fprintf('Overall weighted correlation for %d-fold = %g\n',D.k_fold,cc(1,2));
-      fprintf('============================================================\n\n'); 
+      fprintf('Overall weighted correlation for %d-fold = ',D.k_fold);
+      fprintf('%g ',cc(end,1:end-1));
+      fprintf('\n============================================================\n\n'); 
       BA_unsorted_weighted = [BA_unsorted_weighted BA_unsorted_weighted0];
     end
   else
@@ -670,8 +702,6 @@ EA              = [];
 if ~exist('min_hyperparam','var')
   min_hyperparam = cell(numel(D.res_array),numel(D.smooth_array),numel(D.seg_array),numel(D.train_array));
 end
-
-orig_hyperparam = D.hyperparam;
 
 % go through all resolutions, smoothing sizes, segmentations and training samples
 for i = 1:numel(D.res_array)
@@ -860,11 +890,34 @@ for i = 1:numel(D.res_array)
             error('Age range has to be defined by two values (min/max)');
           end
         end
-                                      
-        [BrainAGE, ~, D] = BA_gpr(D);
+        
+        % add spatial resolution to atlas name
+        if isfield(D,'atlas')
+          [pt, nm] = spm_fileparts(D.atlas);
+          atlas_name = fullfile(pt, [nm '_' D.res 'mm.mat']);
+          
+          load(atlas_name)
+          if ~exist('atlas','var')
+            error('Atlas must contain atlas as variable');
+          end
+          
+          atlas(atlas > 5) = atlas(atlas > 5) - 10;
+          regions = unique(atlas(atlas > 0));
+          D.n_regions = numel(regions);
+          BrainAGE = [];
+          for r=1:D.n_regions
+            D.mask = atlas == regions(r);
+            [tmp, ~, D] = BA_gpr(D);
+            BrainAGE = [BrainAGE tmp];
+          end
+        else
+          [BrainAGE, ~, D] = BA_gpr(D);
+          D.n_regions = 1;
+        end
+               
 
-        % move on if training fa~iled
-        if all(isnan(BrainAGE)) || std(BrainAGE)==0
+        % move on if training failed for global BrainAGE
+        if size(BrainAGE,2) == 1 && (all(isnan(BrainAGE)) || std(BrainAGE)==0)
           BrainAGE_all = BrainAGE;
           BA_unsorted = [BA_unsorted, BrainAGE];
           if isfield(D,'define_cov')
@@ -897,35 +950,39 @@ for i = 1:numel(D.res_array)
           PredictedAge = BrainAGE + D.age_test;
         end
 
-        RMSE = sqrt(sum((BrainAGE(D.ind_adjust)).^2)/length(D.ind_adjust));
-        MAE  = mean(abs(BrainAGE(D.ind_adjust)));
+        MAE  = mean(abs(BrainAGE(D.ind_adjust,:)));
         
         % correlation coefficient is not meaningful for too small samples
+        % and regional estimates
         if length(D.ind_adjust) > 5
-          cc = corrcoef(PredictedAge(D.ind_adjust),D.age_test(D.ind_adjust));
+          cc = corrcoef([PredictedAge(D.ind_adjust,:) D.age_test(D.ind_adjust)]);
         else
           cc(1,2) = NaN;
         end
         
         if isfield(D,'run_kfold') && D.run_kfold > 0
           if isfield(D,'run_repetition') && D.k_fold_reps > 1
-            fprintf('repetition %02d/%02d fold %02d/%02d %s %s %s | test data: n=%d corr: %1.3f, MAE: %2.3f, RMSE: %2.3f\n',...
-               D.run_repetition, D.k_fold_reps, D.run_kfold,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust),cc(1,2),MAE,RMSE);
+            fprintf('repetition %02d/%02d fold %02d/%02d %s %s %s | test data: n=%d MAE/corr:',...
+               D.run_repetition, D.k_fold_reps, D.run_kfold,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust));
           else
-            fprintf('fold %02d/%02d %s %s %s | test data: n=%d corr: %1.3f, MAE: %2.3f, RMSE: %2.3f\n',...
-               D.run_kfold,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust),cc(1,2),MAE,RMSE);
+            fprintf('fold %02d/%02d %s %s %s | test data: n=%d MAE/corr:',...
+               D.run_kfold,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust));
           end
         else
-          fprintf('%s %s %s | test data: n=%d corr: %1.3f, MAE: %2.3f, RMSE: %2.3f\n',...
-             D.res,D.smooth,seg,numel(D.ind_adjust),cc(1,2),MAE,RMSE);
+          fprintf('%s %s %s | test data: n=%d MAE/corr:',...
+             D.res,D.smooth,seg,numel(D.ind_adjust));
         end
+        for r=1:D.n_regions
+          fprintf(' %2.3f/%1.3f',MAE(r),cc(end,r));
+        end
+        fprintf('\n');
         
         data_cell = cell(1,n_groups);
         data = [];
-        avg_BrainAGE = zeros(1,n_groups);
+        avg_BrainAGE = zeros(n_groups,D.n_regions);
         age_test = zeros(n_groups,2);
-        median_BrainAGE = zeros(1,n_groups);
-        SD_BrainAGE = zeros(1,n_groups);
+        median_BrainAGE = zeros(n_groups,D.n_regions);
+        SD_BrainAGE = zeros(n_groups,D.n_regions);
     
         % prepare group-wise data
         ind_groups = [];
@@ -935,25 +992,25 @@ for i = 1:numel(D.res_array)
             allow_violin = 0;
           end
           ind_groups = [ind_groups; D.ind_groups{o}];
-          data_cell{o} = BrainAGE(D.ind_groups{o});
-          avg_BrainAGE(o) = mean(BrainAGE(D.ind_groups{o}));
-          age_test(o,1) = mean(D.age_test(D.ind_groups{o}));
-          age_test(o,2) = std(D.age_test(D.ind_groups{o}));
-          median_BrainAGE(o) = median(BrainAGE(D.ind_groups{o}));
-          SD_BrainAGE(o) = std(BrainAGE(D.ind_groups{o}));
-          data = [data; BrainAGE(D.ind_groups{o})];
+          data_cell{o} = BrainAGE(D.ind_groups{o},:);
+          avg_BrainAGE(o,:) = mean(BrainAGE(D.ind_groups{o},:));
+          age_test(o,1) = mean(D.age_test(D.ind_groups{o},:));
+          age_test(o,2) = std(D.age_test(D.ind_groups{o},:));
+          median_BrainAGE(o,:) = median(BrainAGE(D.ind_groups{o},:));
+          SD_BrainAGE(o,:) = std(BrainAGE(D.ind_groups{o},:));
+          data = [data; BrainAGE(D.ind_groups{o},:)];
         end
     
         % save data for all spatial resolutions and smoothing sizes
         BA_unsorted = [BA_unsorted, BrainAGE];
         if isfield(D,'define_cov')
           PredictedAge_unsorted = [PredictedAge_unsorted, BrainAGE];
-          EA          = [EA, BrainAGE(ind_groups)];
+          EA = [EA, BrainAGE(ind_groups)];
         else
           PredictedAge_unsorted = [PredictedAge_unsorted, BrainAGE + D.age_test];
-          EA          = [EA, BrainAGE(ind_groups) + D.age_test(ind_groups)];
+          EA = [EA, BrainAGE(ind_groups) + D.age_test(ind_groups)];
         end
-        BA          = [BA, data];
+        BA = [BA, data];
         
         if style == 1
           opt = struct('violin',2,'showdata',1,'groupcolor',groupcolor);
@@ -1028,44 +1085,53 @@ for i = 1:numel(D.res_array)
             for o = 2:n_groups
               group = [group; o*ones(length(D.ind_groups{o}),1)];
             end
-            Panova = BA_anova1(data,group,'off');
-            if D.verbose > 1, fprintf('\nANOVA P-value: %f\n',Panova); end
-  
-            P = zeros(n_groups,n_groups);
-  
-            for o = 1:n_groups
-              for p = 1:n_groups
-                [H,P(o,p)] = BA_ttest2(BrainAGE(D.ind_groups{o}),BrainAGE(D.ind_groups{p}),0.05,'left');
-              end
-            end
-              
-            fprintf('T-test P-value (one-tailed):\n');
-            fprintf('%20s\t','Group');
-            for o = 1:n_groups
-              fprintf('%20s\t',deblank(D.name_groups(o,:)));
-            end
-            fprintf('\n');
-  
-            for o = 1:n_groups
-              fprintf('%20s\t',deblank(D.name_groups(o,:)));
-              for p = 1:n_groups
-                if P(o,p) <= 0.001 || P(o,p) >= 0.999
-                  fprintf('%20g***\t',P(o,p));
-                elseif P(o,p) <= 0.01 || P(o,p) >= 0.99
-                  fprintf('%20g **\t',P(o,p));
-                elseif P(o,p) <= 0.05 || P(o,p) >= 0.95
-                  fprintf('%20g  *\t',P(o,p));
-                else
-                  fprintf('%20g\t',P(o,p));
-                end
+            if D.verbose > 1
+              fprintf('\nANOVA P-value: ');
+              for r=1:D.n_regions
+                Panova = BA_anova1(data(:,r),group,'off');
+                fprintf('%f ',Panova);
               end
               fprintf('\n');
             end
-        
-            if ~isempty(find(P<=0.05))
-              fprintf('****************************\n');
-              fprintf('Significant result found\n');
-              fprintf('****************************\n\n');
+            
+
+            for r=1:D.n_regions
+              P = zeros(n_groups,n_groups);
+    
+              for o = 1:n_groups
+                for p = 1:n_groups
+                  [H,P(o,p)] = BA_ttest2(BrainAGE(D.ind_groups{o},r),BrainAGE(D.ind_groups{p},r),0.05,'left');
+                end
+              end
+                
+              fprintf('T-test P-value (one-tailed):\n');
+              fprintf('%20s\t','Group');
+              for o = 1:n_groups
+                fprintf('%20s\t',deblank(D.name_groups(o,:)));
+              end
+              fprintf('\n');
+    
+              for o = 1:n_groups
+                fprintf('%20s\t',deblank(D.name_groups(o,:)));
+                for p = 1:n_groups
+                  if P(o,p) <= 0.001 || P(o,p) >= 0.999
+                    fprintf('%20g***\t',P(o,p));
+                  elseif P(o,p) <= 0.01 || P(o,p) >= 0.99
+                    fprintf('%20g **\t',P(o,p));
+                  elseif P(o,p) <= 0.05 || P(o,p) >= 0.95
+                    fprintf('%20g  *\t',P(o,p));
+                  else
+                    fprintf('%20g\t',P(o,p));
+                  end
+                end
+                fprintf('\n');
+              end
+          
+              if any(P<=0.05)
+                fprintf('****************************\n');
+                fprintf('Significant result found\n');
+                fprintf('****************************\n\n');
+              end
             end
                 
           else
@@ -1073,8 +1139,10 @@ for i = 1:numel(D.res_array)
           end
   
         elseif isfield(D,'corr') % estimate correlation for one group
-          [R, P] = corrcoef(BrainAGE(~isnan(D.corr)),D.corr(~isnan(D.corr)));
-          fprintf('Correlation r=%g (P=%g)\n',R(1,2),P(1,2));
+          for r=1:D.n_regions
+            [R, P] = corrcoef(BrainAGE(~isnan(D.corr),r),D.corr(~isnan(D.corr)));
+            fprintf('Correlation r=%g (P=%g)\n',R(1,2),P(1,2));
+          end
         end
         
       end
@@ -1084,6 +1152,14 @@ end
 
 % estimate ensembles
 if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_kfold'))
+
+  if D.n_regions > 1
+    BA_unsorted0 = reshape(BA_unsorted,D.n_data,D.n_regions,size(BA_unsorted,2)/D.n_regions);
+    BA_unsorted = zeros(D.n_data,size(BA_unsorted,2)/D.n_regions,D.n_regions);
+    for k=1:D.n_data
+      BA_unsorted(k,:,:) = squeeze(BA_unsorted0(k,:,:))';
+    end
+  end
 
   if isfield(D,'ensemble_method') && D.ensemble_method == 4, fprintf('GPR ensemble approach is only useful for k-fold validation.\n'); end
   BA_unsorted_weighted  = ensemble_models(BA_unsorted,D.age_test,D);
@@ -1099,25 +1175,50 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
       BA_unsorted_weighted1 = apply_trend_correction(BA_unsorted_weighted,age,D1);
       fprintf('\n%s:\n',str_trend{i+1});
 
-      MAE_weighted = mean(abs(BA_unsorted_weighted1(D.ind_adjust)));
-      cc = corrcoef(BA_unsorted_weighted1+age,age);
-      fprintf('Weighted MAE/correlation (testdata): %g/%g\n',MAE_weighted,cc(1,2)); 
+      MAE_weighted = mean(abs(BA_unsorted_weighted1(D.ind_adjust,:)));
+      cc = corrcoef([BA_unsorted_weighted1+age age]);
+      fprintf('Weighted MAE/correlation (testdata): '); 
+      for r=1:D.n_regions
+        fprintf(' %2.3f/%1.3f',MAE_weighted(r),cc(end,r));
+      end
+      fprintf('\n');
     end
     fprintf('\n===========================================================\n'); 
   end
 
+  % estimate MAE and correlation using BA without normalization
+  BA_unsorted_weighted0 = BA_unsorted_weighted;
+  % apply final trend correction to weighted model if not k-fold validation
+  if D.trend_degree >= 0 && ~isfield(D,'k_fold')
+    BA_unsorted_weighted0 = apply_trend_correction(BA_unsorted_weighted0,age,D);
+  end
+  
+  MAE_ctl_weighted = mean(abs(BA_unsorted_weighted0(D.ind_adjust,:)));
+
+  cc = corrcoef([BA_unsorted_weighted0+age age]);
+  fprintf('-----------------------------------------------------------------\n'); 
+  fprintf('Weighted MAE/correlation (testdata): '); 
+  for r=1:D.n_regions
+    fprintf(' %2.3f/%1.3f',MAE_ctl_weighted(r),cc(end,r));
+  end
+  fprintf('\n');
+  fprintf('-----------------------------------------------------------------\n'); 
+
+  
+  % apply BA normalization w.r.t. MAE to make BA less dependent from training
+  % sample (size) and scale it to MAE of 5
+  if D.normalize_BA
+    fprintf('\nApply normalization to BrainAGE using MAE.\n'); 
+    BA_unsorted_weighted1 = apply_trend_correction(BA_unsorted_weighted,age,D);
+    BA_unsorted_weighted = D.normalize_BA * BA_unsorted_weighted ./ (mean(abs(BA_unsorted_weighted1(D.ind_adjust,:))));
+  end
+  
   % apply final trend correction to weighted model if not k-fold validation
   if D.trend_degree >= 0 && ~isfield(D,'k_fold')
     BA_unsorted_weighted = apply_trend_correction(BA_unsorted_weighted,age,D);
   end
   
   BA_weighted = BA_unsorted_weighted(ind_groups);
-  MAE_ctl_weighted = mean(abs(BA_unsorted_weighted(D.ind_adjust)));
-
-  cc = corrcoef(BA_unsorted_weighted+age,age);
-  fprintf('-----------------------------------------------------------------\n'); 
-  fprintf('Weighted MAE/correlation (testdata): %g/%g\n',MAE_ctl_weighted,cc(1,2)); 
-  fprintf('-----------------------------------------------------------------\n'); 
   
   if D.verbose >1
     figure(22)
@@ -1149,45 +1250,53 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   
   if n_groups > 1
     if exist('BA_anova1')
-      Panova = BA_anova1(BA_weighted,group,'off');
-      if D.verbose > 1, fprintf('\nWeighted ANOVA P-value: %f\n',Panova); end
-    
-      P = zeros(n_groups,n_groups);
-      for o = 1:n_groups
-        for p = 1:n_groups
-          [H,P(o,p)] = BA_ttest2(BA_unsorted_weighted(D.ind_groups{o}),BA_unsorted_weighted(D.ind_groups{p}),0.05,'left');
-        end
-      end
-    
-      fprintf('T-test P-value (one-tailed):\n');
-      fprintf('%20s\t','Group');
-      for o = 1:n_groups
-        fprintf('%20s\t',deblank(D.name_groups(o,:)));
-      end
-      fprintf('\n');
-    
-      for o = 1:n_groups
-        fprintf('%20s\t',deblank(D.name_groups(o,:)));
-        for p = 1:n_groups
-          if P(o,p) <= 0.001 || P(o,p) >= 0.999
-            fprintf('%20g***\t',P(o,p));
-          elseif P(o,p) <= 0.01 || P(o,p) >= 0.99
-            fprintf('%20g **\t',P(o,p));
-          elseif P(o,p) <= 0.05 || P(o,p) >= 0.95
-            fprintf('%20g  *\t',P(o,p));
-          else
-            fprintf('%20g\t',P(o,p));
-          end
+
+      if D.verbose > 1
+        fprintf('\nnWeighted ANOVA P-value: ');
+        for r=1:D.n_regions
+          Panova = BA_anova1(BA_weighted(:,r),group,'off');
+          fprintf('%f ',Panova);
         end
         fprintf('\n');
       end
     
-      if ~isempty(find(P<=0.05))
-        fprintf('****************************\n');
-        fprintf('Significant result found\n');
-        fprintf('****************************\n\n');
+      for r=1:D.n_regions
+        P = zeros(n_groups,n_groups);
+        for o = 1:n_groups
+          for p = 1:n_groups
+            [H,P(o,p)] = BA_ttest2(BA_unsorted_weighted(D.ind_groups{o},r),BA_unsorted_weighted(D.ind_groups{p},r),0.05,'left');
+          end
+        end
+      
+        fprintf('T-test P-value (one-tailed):\n');
+        fprintf('%20s\t','Group');
+        for o = 1:n_groups
+          fprintf('%20s\t',deblank(D.name_groups(o,:)));
+        end
+        fprintf('\n');
+      
+        for o = 1:n_groups
+          fprintf('%20s\t',deblank(D.name_groups(o,:)));
+          for p = 1:n_groups
+            if P(o,p) <= 0.001 || P(o,p) >= 0.999
+              fprintf('%20g***\t',P(o,p));
+            elseif P(o,p) <= 0.01 || P(o,p) >= 0.99
+              fprintf('%20g **\t',P(o,p));
+            elseif P(o,p) <= 0.05 || P(o,p) >= 0.95
+              fprintf('%20g  *\t',P(o,p));
+            else
+              fprintf('%20g\t',P(o,p));
+            end
+          end
+          fprintf('\n');
+        end
+      
+        if ~isempty(find(P<=0.05))
+          fprintf('****************************\n');
+          fprintf('Significant result found\n');
+          fprintf('****************************\n\n');
+        end
       end
-  
     else
       fprintf('BA_anova1 not found.\n');
     end
@@ -1217,12 +1326,12 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   ind_groups = [];
   for o = 1:n_groups
     ind_groups = [ind_groups; D.ind_groups{o}];
-    data_cell{o} = BA_unsorted_weighted(D.ind_groups{o});
-    avg_BrainAGE(o) = mean(BA_unsorted_weighted(D.ind_groups{o}));
+    data_cell{o} = BA_unsorted_weighted(D.ind_groups{o},:);
+    avg_BrainAGE(o,:) = mean(BA_unsorted_weighted(D.ind_groups{o},:));
     age_test(o,1) = mean(D.age_test(D.ind_groups{o}));
     age_test(o,2) = std(D.age_test(D.ind_groups{o}));
-    median_BrainAGE(o) = median(BA_unsorted_weighted(D.ind_groups{o}));
-    SD_BrainAGE(o) = std(BA_unsorted_weighted(D.ind_groups{o}));
+    median_BrainAGE(o,:) = median(BA_unsorted_weighted(D.ind_groups{o},:));
+    SD_BrainAGE(o,:) = std(BA_unsorted_weighted(D.ind_groups{o},:));
   end
     
   % print BrainAGE of groups
@@ -1231,12 +1340,14 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     fprintf('%20s\t',deblank(D.name_groups(o,:)));
   end
 
-  fprintf('\n'); fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o)); end
-  fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o)); end
-  fprintf('\n'); fprintf('%20s\t','SD');     for o = 1:n_groups, fprintf('%20.3f\t',SD_BrainAGE(o)); end
-  fprintf('\n');
+  for r=1:D.n_regions
+    fprintf('\n'); fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o,r)); end
+    fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o,r)); end
+    fprintf('\n'); fprintf('%20s\t','SD');     for o = 1:n_groups, fprintf('%20.3f\t',SD_BrainAGE(o,r)); end
+    fprintf('\n');
+  end
 
-  if D.verbose > 1 && all(sum(isnan(BA_unsorted)) == 0)
+  if D.verbose && sum(isnan(BA_unsorted(:))) == 0
     figure(24)
     cat_plot_boxplot(data_cell,opt);
 
@@ -1312,29 +1423,34 @@ end
 switch ensemble_method
 case 0   % use model with lowest MAE
   
-  BA_ind = BA_corrected(D.ind_adjust,:);
+  BA_ind = BA_corrected(D.ind_adjust,:,:);
   [~, mn_ind] = min(mean(abs(BA_ind)));
   
-  fprintf('\nModel with lowest MAE is %d\n',mn_ind);
+  fprintf('\nModel with lowest MAE is ');
+  fprintf('%d ',mn_ind);
+  fprintf('\n');
   
   weighted_PredictedAge = PredictedAge_corrected(:,mn_ind);
   BA_weighted = weighted_PredictedAge - age;
 
 case 1   % use GLM estimation to minimize MAE
   
-  PredictedAge_ind = PredictedAge_corrected(D.ind_adjust,:);
-  Beta = pinv(PredictedAge_ind)*age(D.ind_adjust);
+  BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
+  fprintf('Estimated Betas using %d subjects:\n',numel(D.ind_adjust));
+  for r=1:D.n_regions
+    PredictedAge_ind = PredictedAge_corrected(D.ind_adjust,:,r);
+    Beta = pinv(PredictedAge_ind)*age(D.ind_adjust);
   
-  fprintf('\nEstimated Betas using %d subjects:\t',numel(D.ind_adjust));
-  fprintf('%.2f ',Beta);
-  fprintf('\n');
+    fprintf('%.2f ',Beta);
+    fprintf('\n');
   
-  weighted_PredictedAge = PredictedAge_corrected*Beta;
-  BA_weighted = weighted_PredictedAge - age;
+    weighted_PredictedAge = PredictedAge_corrected(:,:,r)*Beta;
+    BA_weighted(:,r) = weighted_PredictedAge - age;
+  end
 
 case 2 % simple mean of all models
   
-  BA_weighted = mean(BA_corrected,2);
+  BA_weighted = squeeze(mean(BA_corrected,2));
 case 3   % use GLM estimation to maximize group differences or correlation (EXPERIMENTAL!)
 
   if ~isfield(D,'contrast')
@@ -1406,6 +1522,7 @@ case 3   % use GLM estimation to maximize group differences or correlation (EXPE
 case 4   % Stacking: use GPR to combine models
         
   PredictedAge_ind = PredictedAge_corrected;
+  BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
   
   for i=1:numel(ind_test_array)
     
@@ -1416,23 +1533,27 @@ case 4   % Stacking: use GPR to combine models
     ind_test  = ind_test_array{i};
     ind_test  = ind_test(ismember(ind_test,D.ind_adjust));
     
-    Y_train = PredictedAge_ind(ind_train,:);
-    Y_test  = PredictedAge_ind(ind_test,:);
+    for r=1:D.n_regions
+      Y_train = PredictedAge_ind(ind_train,:,r);
+      Y_test  = PredictedAge_ind(ind_test,:,r);
     
-    % multivariate regression using GPR
-    PredictedAge = BA_gpr_core(Y_train, age(ind_train), Y_test, 10, 1);
-    BA_weighted(ind_test) = PredictedAge-age(ind_test);
-    
+      % multivariate regression using GPR
+      PredictedAge = BA_gpr_core(Y_train, age(ind_train), Y_test, 10, 1);
+      BA_weighted(ind_test,r) = PredictedAge-age(ind_test);
+    end
   end
   
-  BA_weighted = BA_weighted';
+%  BA_weighted = BA_weighted';
 
 case 5 % weighted average of all models w.r.t. MAE
-  MAE = mean(abs(BA_corrected));
-  weight = 1./MAE.^2;
-  weight = weight/mean(weight);
-  PredictedAge_weighted = mean(PredictedAge_corrected.*weight,2);
-  BA_weighted = PredictedAge_weighted - age;
+  BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
+  for r=1:D.n_regions
+    MAE = mean(abs(BA_corrected(:,:,r)));
+    weight = 1./MAE.^2;
+    weight = weight/mean(weight);
+    PredictedAge_weighted = mean(PredictedAge_corrected(:,:,r).*weight,2);
+    BA_weighted(:,r) = PredictedAge_weighted - age;
+  end
 end
 
 if isfield(D,'define_cov')
@@ -1489,17 +1610,17 @@ for i = 1:max(site_adjust)
     if length(ind_site_adjust) < 15
       if verbose, fprintf('Sample #%d for site-specific trend-correction is too small (n=%d). Use only offset-correction by Mean instead.\n',...
           i,length(ind_site_adjust)); end
-      offset = median(BrainAGE(ind_site_adjust));
-      BrainAGE(ind_site) = BrainAGE(ind_site) - offset;
-      PredictedAge(ind_site) = PredictedAge(ind_site) - offset;
+      offset = median(BrainAGE(ind_site_adjust,:));
+      BrainAGE(ind_site,:) = BrainAGE(ind_site,:) - offset;
+      PredictedAge(ind_site,:) = PredictedAge(ind_site,:) - offset;
       
     % test whether age range is too small
     elseif (max(age(ind_site_adjust)) - min(age(ind_site_adjust))) < 1
       if verbose, fprintf('Age range for site-specific trend-correction is too small (%g). Use only offset-correction by Mean instead.\n',...
           (max(age(ind_site_adjust)) - min(age(ind_site_adjust)))); end
-      offset = median(BrainAGE(ind_site_adjust));
-      BrainAGE(ind_site) = BrainAGE(ind_site) - offset;
-      PredictedAge(ind_site) = PredictedAge(ind_site) - offset;
+      offset = median(BrainAGE(ind_site_adjust,:));
+      BrainAGE(ind_site,:) = BrainAGE(ind_site,:) - offset;
+      PredictedAge(ind_site,:) = PredictedAge(ind_site,:) - offset;
       
     % everything else
     else
@@ -1524,8 +1645,9 @@ for i = 1:max(site_adjust)
       if verbose, fprintf('Remove trend degree %d using %d subjects of site %d.\n',D.trend_degree,length(ind_site_adjust),i); end
         
       % estimate beta only for indexed data (e.g. control subjects)
-      Beta = pinv(G_indexed)*Y(ind_site_adjust);
-      
+      Beta = pinv(G_indexed)*Y(ind_site_adjust,:);
+      Beta = mean(Beta,2);
+
       % and remove effects for all data
       GBeta = G*Beta;
 
@@ -1533,18 +1655,18 @@ for i = 1:max(site_adjust)
       
       % use BrainAGE for obtaining trend
       if D.trend_method == 1
-        PredictedAge(ind_site)  = PredictedAge(ind_site)  - GBeta;
+        PredictedAge(ind_site,:)  = PredictedAge(ind_site,:)  - GBeta;
         BrainAGE = PredictedAge - age;
         Adjustment{i} = GBeta;
       else
         % use predicted age for obtaining trend
-        PredictedAge(ind_site)  = (PredictedAge(ind_site) - Beta(1));
+        PredictedAge(ind_site,:)  = (PredictedAge(ind_site,:) - Beta(1));
         if D.trend_degree == 1
-          PredictedAge(ind_site) = PredictedAge(ind_site)/Beta(2);
+          PredictedAge(ind_site,:) = PredictedAge(ind_site,:)/Beta(2);
         end
         BrainAGE = PredictedAge - age;
       end
-      Adjustment{i} = BrainAGE0(ind_site) - BrainAGE(ind_site);
+      Adjustment{i} = BrainAGE0(ind_site,:) - BrainAGE(ind_site,:);
     end
   else
     if D.trend_degree >= 0
@@ -1553,7 +1675,7 @@ for i = 1:max(site_adjust)
   end
 end
 
-avg_BrainAGE = mean(BrainAGE(D.ind_adjust));
+avg_BrainAGE = mean(BrainAGE(D.ind_adjust,:));
 BrainAGE = BrainAGE - avg_BrainAGE;
 PredictedAge = PredictedAge - avg_BrainAGE;
 
@@ -1563,7 +1685,9 @@ if MAE0/MAE > 4
   if verbose, fprintf('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n'); end
 end
 
+%-------------------------------------------------------------------------------
 function C = nejm
+%-------------------------------------------------------------------------------
   C = [
     '#BC3C29'
     '#0072B5'
