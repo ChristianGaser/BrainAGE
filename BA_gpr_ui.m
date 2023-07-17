@@ -96,7 +96,11 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.normalize_BA    - normalize BA values w.r.t. MAE to make BA less dependent from training sample (i.e. size) and scale 
 %                     it to MAE of 5 (default)
 % D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
-% D.atlas           - define atlas mat-file to additionally estimate regional BrainAGE values (use BA_atlas2mat to create atlas mat-file)
+% D.parcellation    - use parcellation into lobes to additionally estimate local BrainAGE values:
+%                     https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058
+%                     0 - estimate global BrainAGE
+%                     1 - estimate local BrainAGE with left and right hemispheres combined
+%                     2 - estimate local BrainAGE with left and right hemispheres separately
 %
 % Parameter search
 % ---------------
@@ -399,8 +403,8 @@ if ~isfield(D,'run_kfold')
   fprintf('Trend method:  \t%d\n',D.trend_method);
   fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
   fprintf('--------------------------------------------------------------\n');
-  if isfield(D,'atlas')
-    fprintf('Apply regional mask to data using %s.\n',D.atlas);
+  if isfield(D,'parcellation')
+    fprintf('Estimate local BrainAGE with parcellation into lobes.\n');
   end
 end
 
@@ -892,16 +896,19 @@ for i = 1:numel(D.res_array)
         end
         
         % add spatial resolution to atlas name
-        if isfield(D,'atlas')
-          [pt, nm] = spm_fileparts(D.atlas);
-          atlas_name = fullfile(pt, [nm '_' D.res 'mm.mat']);
+        if isfield(D,'parcellation')
+          atlas_name = ['Brain_Lobes_' D.res 'mm.mat'];
           
           load(atlas_name)
           if ~exist('atlas','var')
             error('Atlas must contain atlas as variable');
           end
           
-          atlas(atlas > 5) = atlas(atlas > 5) - 10;
+          % merge eft and righ hemisphere
+          if D.parcellation == 1
+            atlas(atlas > 5) = atlas(atlas > 5) - 10;
+          end
+          
           regions = unique(atlas(atlas > 0));
           D.n_regions = numel(regions);
           BrainAGE = [];
