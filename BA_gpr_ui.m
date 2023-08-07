@@ -72,10 +72,10 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.ensemble        - ensemble method to combine different models
 %                     0 - Majority voting: use model with lowest MAE
 %                     1 - Weighted GLM average: use GLM estimation to estimate model weights to minimize MAE
-%                     2 - Average: use mean to weight different models (as default)
+%                     2 - Average: use mean to weight different models
 %                     3 - GLM: use GLM estimation to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
 %                     4 - Stacking: use GPR to combine models (EXPERIMENTAL!, only works with k_fold validation)
-%                     5 - Weighted Average: (average models with weighting w.r.t. MAE)
+%                     5 - Weighted Average: (average models with weighting w.r.t. MAE) (default)
 % D.contrast        - define contrast to maximize group differences (use only if D.ensemble=3) (e.g. [1 -1])
 %                     D.contrast can be also a vector which is used to maximize variance between BrainAGE and this parameter.
 % D.dir             - directory for databases and code
@@ -155,6 +155,10 @@ end
 
 if ~isfield(D,'trend_ensemble')
   D.trend_ensemble = 0;
+end
+
+if ~isfield(D,'ensemble')
+  D.ensemble = 5;
 end
 
 if ~isfield(D,'age_range')
@@ -1102,12 +1106,16 @@ for i = 1:numel(D.res_array)
             end
             
 
-            for r=1:D.n_regions
+            for r = 1:D.n_regions
               P = zeros(n_groups,n_groups);
     
               for o = 1:n_groups
                 for p = 1:n_groups
-                  [H,P(o,p)] = BA_ttest2(BrainAGE(D.ind_groups{o},r),BrainAGE(D.ind_groups{p},r),0.05,'left');
+                  if o == p
+                    P(o,p) = 0.5;
+                  else
+                    [H,P(o,p)] = BA_ttest2(BrainAGE(D.ind_groups{o},r),BrainAGE(D.ind_groups{p},r),0.05,'left');
+                  end
                 end
               end
                 
@@ -1225,7 +1233,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     BA_unsorted_weighted = apply_trend_correction(BA_unsorted_weighted,age,D);
   end
   
-  BA_weighted = BA_unsorted_weighted(ind_groups);
+  BA_weighted = BA_unsorted_weighted(ind_groups,:);
   
   if D.verbose >1
     figure(22)
@@ -1259,7 +1267,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     if exist('BA_anova1')
 
       if D.verbose > 1
-        fprintf('\nnWeighted ANOVA P-value: ');
+        fprintf('\nWeighted ANOVA P-value: ');
         for r=1:D.n_regions
           Panova = BA_anova1(BA_weighted(:,r),group,'off');
           fprintf('%f ',Panova);
