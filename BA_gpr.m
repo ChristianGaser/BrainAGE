@@ -370,10 +370,9 @@ if (min(age_train)-min(D.age_test) > 2) || (max(D.age_test)>max(age_train) > 2)
       min(age_train),max(age_train),min(D.age_test),max(D.age_test));
 end
 
-if D.verbose > 1
-  fprintf('%d subjects used for training (age %3.1f..%3.1f years)\n',length(age_train),min(age_train),max(age_train));
-  fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(age_train),std(age_train),sum(male_train),length(age_train)-sum(male_train));
-end
+% save output
+D.age_train = age_train;
+D.male_train = male_train;
 
 % estimate range using training data only and scale to 0..1
 mn = min(Y_train(:));

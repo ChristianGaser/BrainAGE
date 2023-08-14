@@ -79,7 +79,10 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.contrast        - define contrast to maximize group differences (use only if D.ensemble=3) (e.g. [1 -1])
 %                     D.contrast can be also a vector which is used to maximize variance between BrainAGE and this parameter.
 % D.dir             - directory for databases and code
-% D.verbose         - verbose level (default=1), set to "0" to suppress long outputs
+% D.verbose         - verbose level
+%                     0 - suppress long outputs
+%                     0 - print meaningful outputs (default)
+%                     0 - print long outputs
 % D.threshold_std   - all data with a standard deviation > D.threshold_std of mean covariance are excluded (after covarying out effects of age)
 %                     meaningful values are 1,2 or Inf
 % D.eqdist          - options for age and sex equalization between test and train
@@ -683,9 +686,8 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       site_adjust = D.site_adjust;
     end
     
-    % apply trend correction only for non-weighted data because otherwise
-    % it's already done
-    if D.trend_degree >= 0 && ~isfield(D,'ensemble')
+    % apply trend correction only for non-weighted data
+    if D.trend_degree >= 0
       % apply trend correction for each site separately
       for i = 1:max(site_adjust)
         ind_site = find(site_adjust == i);
@@ -925,7 +927,15 @@ for i = 1:numel(D.res_array)
           [BrainAGE, ~, D] = BA_gpr(D);
           D.n_regions = 1;
         end
-               
+           
+        % print information about training sample only once for D.threshold_std == Inf or otherwise always
+        if D.verbose && (i==1 && j==1 && k==1) || isfinite(D.threshold_std)
+          fprintf('\n%d subjects used for training (age %3.1f..%3.1f years)\n',length(D.age_train),min(D.age_train),max(D.age_train));
+          fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(D.age_train),std(D.age_train),sum(D.male_train),length(D.age_train)-sum(D.male_train));
+          if ~isfinite(D.threshold_std)
+            fprintf('\n');
+          end
+        end
 
         % move on if training failed for global BrainAGE
         if size(BrainAGE,2) == 1 && (all(isnan(BrainAGE)) || std(BrainAGE)==0)
