@@ -75,7 +75,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     2 - Average: use mean to weight different models
 %                     3 - GLM: use GLM estimation to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
 %                     4 - Stacking: use GPR to combine models (EXPERIMENTAL!, only works with k_fold validation)
-%                     5 - Weighted Average: (average models with weighting w.r.t. MAE) (default)
+%                     5 - Weighted Average: (average models with weighting w.r.t. squared MAE) (default)
 % D.contrast        - define contrast to maximize group differences (use only if D.ensemble=3) (e.g. [1 -1])
 %                     D.contrast can be also a vector which is used to maximize variance between BrainAGE and this parameter.
 % D.dir             - directory for databases and code
@@ -272,7 +272,7 @@ ensemble_str = {'Majority Voting (model with lowest MAE)',...
                 'Average of all models',...
                 'GLM for weighting models to maximize variance w.r.t. contrast vector',...
                 'Stacking: GPR for combining models',...
-                'Weighted Average: (average models with weighting w.r.t. MAE)'};
+                'Weighted Average: (average models with weighting w.r.t. squared MAE)'};
 
 if isfield(D,'define_cov')
   if ~isempty(strfind(D.data,'+'))

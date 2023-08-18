@@ -6,8 +6,6 @@ function [mappedX, mapping] = BA_pca(X, no_dims, method)
 % The function runs PCA on a set of datapoints X. The variable
 % no_dims sets the number of dimensions of the feature points in the 
 % embedded feature space (no_dims >= 1, default = 2). 
-% For no_dims, you can also specify a number between 0 and 1, determining 
-% the amount of variance you want to retain in the PCA step.
 % The function returns the locations of the embedded trainingdata in 
 % mappedX. Furthermore, it returns information on the mapping in mapping.
 %
