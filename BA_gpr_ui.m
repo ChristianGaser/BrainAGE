@@ -1531,8 +1531,8 @@ case 3   % use GLM estimation to maximize group differences or correlation (EXPE
     Beta = pinv(Y)*X;
   else
     % we have to excluded NaNs for Beta estimation
-    ind_finite = isfinite(X);
-    Beta = pinv(Y(ind(ind_finite),:))*X(ind_finite);
+    ind_finite = all(isfinite(X),2);
+    Beta = pinv(Y(ind(ind_finite),:))*X(ind_finite,:);
   end
   Beta = Beta./sum(Beta); % ensure that sum is 1
 
