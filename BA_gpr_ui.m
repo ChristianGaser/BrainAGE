@@ -410,7 +410,7 @@ if ~isfield(D,'run_kfold')
   fprintf('Trend method:  \t%d\n',D.trend_method);
   fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
   fprintf('--------------------------------------------------------------\n');
-  if isfield(D,'parcellation')
+  if isfield(D,'parcellation') & D.parcellation > 0
     fprintf('Estimate local BrainAGE with parcellation into lobes.\n');
   end
 end
@@ -691,7 +691,9 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       % apply trend correction for each site separately
       for i = 1:max(site_adjust)
         ind_site = find(site_adjust == i);
-        BA_all(ind_site,:) = BA_all(ind_site,:) - Adjustment{i};
+        for j=1:size(BA_all,2)
+          BA_all(ind_site,j,:) = squeeze(BA_all(ind_site,j,:)) - Adjustment{i};
+        end
       end
     end      
     BrainAGE_all = BA_all;
@@ -902,7 +904,7 @@ for i = 1:numel(D.res_array)
         end
         
         % add spatial resolution to atlas name
-        if isfield(D,'parcellation')
+        if isfield(D,'parcellation') && D.parcellation > 0
           atlas_name = ['Brain_Lobes_' D.res 'mm.mat'];
           
           load(atlas_name)
@@ -910,7 +912,7 @@ for i = 1:numel(D.res_array)
             error('Atlas must contain atlas as variable');
           end
           
-          % merge eft and righ hemisphere
+          % merge left and righ hemisphere
           if D.parcellation == 1
             atlas(atlas > 5) = atlas(atlas > 5) - 10;
           end
@@ -918,7 +920,7 @@ for i = 1:numel(D.res_array)
           regions = unique(atlas(atlas > 0));
           D.n_regions = numel(regions);
           BrainAGE = [];
-          for r=1:D.n_regions
+          for r = 1:D.n_regions
             D.mask = atlas == regions(r);
             [tmp, ~, D] = BA_gpr(D);
             BrainAGE = [BrainAGE tmp];
