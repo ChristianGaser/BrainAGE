@@ -912,7 +912,7 @@ for i = 1:numel(D.res_array)
             error('Atlas must contain atlas as variable');
           end
           
-          % merge left and righ hemisphere
+          % merge left and right hemisphere
           if D.parcellation == 1
             atlas(atlas > 5) = atlas(atlas > 5) - 10;
           end
