@@ -104,6 +104,9 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     0 - estimate global BrainAGE
 %                     1 - estimate local BrainAGE with left and right hemispheres combined
 %                     2 - estimate local BrainAGE with left and right hemispheres separately
+% D.spiderplot_func - show spider (radar) plot either with mean or median values (only valid if D.parcellation is used):
+%                     'median' - use median values (default)
+%                     'mean'   - use mean values
 %
 % Parameter search
 % ---------------
@@ -146,6 +149,10 @@ else
   if D.normalize_BA == 1
     D.normalize_BA = 5;
   end
+end
+
+if ~isfield(D,'spiderplot_func')
+  D.spiderplot_func = 'median';
 end
 
 if ~isfield(D,'trend_degree')
@@ -1376,15 +1383,17 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
 
   if D.verbose && sum(isnan(BA_unsorted(:))) == 0
     figure(24)
+    
+    % show spiderplot for regional BrainAGE
     if D.parcellation
         set(gcf, 'Position',[10 10 900 800])
-        median_BA = zeros(numel(data_cell),size(BA_unsorted_weighted,2));
+        combined_BA = zeros(numel(data_cell),size(BA_unsorted_weighted,2));
         for l = 1:numel(data_cell)
-            median_BA(l,:) = median(BA_unsorted_weighted(D.ind_groups{l},:));
+            combined_BA(l,:) = feval(D.spiderplot_func,BA_unsorted_weighted(D.ind_groups{l},:));
         end
-        BA_spider_plot(median_BA, D.name_groups, [], D.groupcolor);
+        BA_spider_plot(combined_BA, D.name_groups, [], D.groupcolor);
         set(gcf,'Name','Median Weighted BrainAGE','MenuBar','none');
-    else
+    else % otherwise use boxplot
         cat_plot_boxplot(data_cell,opt);
         if style == 1
           set(gca,'XTick',1:n_groups,'XTickLabel',D.name_groups);
