@@ -1048,10 +1048,10 @@ for i = 1:numel(D.res_array)
         
         if D.verbose > 1
           figure(21)
-          cat_plot_boxplot(data_cell,opt);
-    
           set(gcf,'Name',name,'MenuBar','none');
 
+          cat_plot_boxplot(data_cell,opt);
+    
           if style == 1
             set(gca,'XTick',1:n_groups,'XTickLabel',D.name_groups);
           else
@@ -1376,21 +1376,27 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
 
   if D.verbose && sum(isnan(BA_unsorted(:))) == 0
     figure(24)
-    cat_plot_boxplot(data_cell,opt);
-
-    set(gcf,'Name','Weighted BrainAGE','MenuBar','none');
-
-    if style == 1
-      set(gca,'XTick',1:n_groups,'XTickLabel',D.name_groups);
+    if D.parcellation
+        set(gcf, 'Position',[10 10 900 800])
+        median_BA = zeros(numel(data_cell),size(BA_unsorted_weighted,2));
+        for l = 1:numel(data_cell)
+            median_BA(l,:) = median(BA_unsorted_weighted(D.ind_groups{l},:));
+        end
+        BA_spider_plot(median_BA, D.name_groups, [], D.groupcolor);
+        set(gcf,'Name','Median Weighted BrainAGE','MenuBar','none');
     else
-      set(gca,'YTick',1:n_groups,'YTickLabel',D.name_groups(n_groups:-1:1,:));
+        cat_plot_boxplot(data_cell,opt);
+        if style == 1
+          set(gca,'XTick',1:n_groups,'XTickLabel',D.name_groups);
+          ylabel('BrainAGE [years]');
+        else
+          set(gca,'YTick',1:n_groups,'YTickLabel',D.name_groups(n_groups:-1:1,:));
+          xlabel('BrainAGE [years]');
+        end
+        set(gcf,'Name','Weighted BrainAGE','MenuBar','none');
     end
+
     set(gca,'FontSize',20);
-    if style == 1
-      ylabel('BrainAGE [years]');
-    else
-      xlabel('BrainAGE [years]');
-    end
   end
 end
 

@@ -1,4 +1,19 @@
-function BA_spider_plot(data, group_names, range)
+function BA_spider_plot(data, group_names, range, colors)
+%BA_spider_plot Create a spider or radar plot with individual axes for regional BrainAGE.
+%
+% Syntax:
+%   BA_spider_plot(data, [group_names, range, colors])
+%      data        - data to plot
+%      group_names - group names for legend
+%      range       - axis range for all data points (default [floor(min(data(:))*10)/10; ceil(max(data(:))*10)/10])
+%      colors      - colors for each group (default lines(n_groups)
+% ______________________________________________________________________
+%
+% Christian Gaser
+% Structural Brain Mapping Group (https://neuro-jena.github.io)
+% Departments of Neurology and Psychiatry
+% Jena University Hospital
+% ______________________________________________________________________
 
 names = {'R Frontal','R Parietal','R Occipital','R Temporal',{'R Subcortical/','Cerebellum'},...
          'L Frontal','L Parietal','L Occipital','L Temporal',{'L Subcortical/','Cerebellum'}};
@@ -6,11 +21,6 @@ names = {'R Frontal','R Parietal','R Occipital','R Temporal',{'R Subcortical/','
 
 % change order so that left and right is correctly displayed
 ind = circshift([1 4 2 3 5 10 8 7 9 6], -2);
-
-% estimate range and use ceil/floor with defined precision
-if nargin < 3
-  range = [floor(min(data(:))*10)/10; ceil(max(data(:))*10)/10];
-end
 
 % transpose if necessary
 if size(data,1) > size(data,2)
@@ -24,19 +34,31 @@ else
   P = data(:,ind);
 end
 
+n_groups  = size(P,1);
+n_regions = size(P,2);
+
+% estimate range and use ceil/floor with defined precision
+if (nargin < 3) || (nargin > 2 && isempty(range))
+  range = [floor(min(data(:))*10)/10; ceil(max(data(:))*10)/10];
+end
+
+if nargin < 4
+  colors = lines(n_groups);
+end
+
 spider_plot(P,...
     'AxesLabels', names(ind),...
-    'AxesLimits', repmat([range(1); range(2)],1,size(P,2)),...
+    'AxesLimits', repmat([range(1); range(2)],1,n_regions),...
     'FillOption', {'on'},...
     'FillTransparency', 0.2,...
     'AxesStart', 0,...
-    'LabelFontSize', 32,...
+    'LabelFontSize', 24,...
     'AxesPrecision', 1,...
     'AxesInterval', 3,...
     'AxesFontSize', 20);
 
 if nargin > 1
-  hl = legend(group_names,'Location','SouthOutside','FontSize',24);
+  hl = legend(strrep(cellstr(group_names),'_','-'),'Location','SouthOutside','FontSize',24);
 end
 
 end

@@ -1,5 +1,5 @@
 function [mappedX, mapping] = BA_pca(X, no_dims, method)
-%PCA Perform the PCA algorithm
+%Perform the PCA algorithm
 %
 %   [mappedX, mapping] = pca(X, no_dims, method)
 %
