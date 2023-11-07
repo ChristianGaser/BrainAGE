@@ -1245,16 +1245,17 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   % apply BA normalization w.r.t. MAE to make BA less dependent from training
   % sample (size) and scale it to MAE of 5
   if D.normalize_BA
-    fprintf('\nApply normalization to BrainAGE using MAE.\n'); 
-    BA_unsorted_weighted1 = apply_trend_correction(BA_unsorted_weighted,age,D);
+    fprintf('\nApply normalization to BrainAGE using MAE.\n');
+    BA_unsorted_weighted1 = apply_trend_correction(BA_unsorted_weighted,age,D,0);
     BA_unsorted_weighted = D.normalize_BA * BA_unsorted_weighted ./ (mean(abs(BA_unsorted_weighted1(D.ind_adjust,:))));
   end
-  
+
   % apply final trend correction to weighted model if not k-fold validation
   if D.trend_degree >= 0 && ~isfield(D,'k_fold')
     BA_unsorted_weighted = apply_trend_correction(BA_unsorted_weighted,age,D);
   end
-  
+
+  fprintf('\n');
   BA_weighted = BA_unsorted_weighted(ind_groups,:);
   
   if D.verbose >1
@@ -1397,10 +1398,10 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
 
   if D.verbose && sum(isnan(BA_unsorted(:))) == 0
     figure(24)
+    set(gcf, 'Position',[10 10 900 800])
     
     % show spiderplot for regional BrainAGE
     if D.parcellation
-        set(gcf, 'Position',[10 10 900 800])
         combined_BA = zeros(numel(data_cell),size(BA_unsorted_weighted,2));
         for l = 1:numel(data_cell)
             combined_BA(l,:) = feval(D.spiderplot_func,BA_unsorted_weighted(D.ind_groups{l},:));
