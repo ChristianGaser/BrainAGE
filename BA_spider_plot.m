@@ -27,6 +27,13 @@ if size(data,1) > size(data,2)
   data = data';
 end
 
+% we have to round values that are quite close to zero because scaling will
+% be otherwise starting with negative values instead of zero 
+if min(data) > -1e-15
+  ind0 = find(data < 1e-5);
+  data(ind0) = 0;
+end
+
 % change order
 if size(data,1) == 1
   P = data(ind);
@@ -39,7 +46,7 @@ n_regions = size(P,2);
 
 % estimate range and use ceil/floor with defined precision
 if (nargin < 3) || (nargin > 2 && isempty(range))
-  range = [floor(min(data(:))*10)/10; ceil(max(data(:))*10)/10];
+  range = [floor(min(data(:))*10)/10; ceil(max(data(:))*10)/10]
 end
 
 if nargin < 4
