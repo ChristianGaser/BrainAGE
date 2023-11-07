@@ -102,11 +102,10 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.parcellation    - use parcellation into lobes to additionally estimate local BrainAGE values:
 %                     https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058
 %                     0 - estimate global BrainAGE
-%                     1 - estimate local BrainAGE with left and right hemispheres combined
-%                     2 - estimate local BrainAGE with left and right hemispheres separately
+%                     1 - estimate local BrainAGE for different lobes for both hemispheres
 % D.spiderplot_func - show spider (radar) plot either with mean or median values (only valid if D.parcellation is used):
-%                     'median' - use median values (default)
-%                     'mean'   - use mean values
+%                     'median' - use median values 
+%                     'mean'   - use mean values (default)
 %
 % Parameter search
 % ---------------
@@ -152,7 +151,7 @@ else
 end
 
 if ~isfield(D,'spiderplot_func')
-  D.spiderplot_func = 'median';
+  D.spiderplot_func = 'mean';
 end
 
 if ~isfield(D,'trend_degree')
@@ -273,6 +272,10 @@ end
 if isfield(D,'comcat') && numel(D.comcat) == 1 &&  D.comcat == 0
   D = rmfield(D,'comcat');
 end
+
+region_names = {'R Frontal','R Parietal','R Occipital','R Temporal','R Subcortical/Cerebellum',...
+         'L Frontal','L Parietal','L Occipital','L Temporal','L Subcortical/Cerebellum'};
+
 
 ensemble_str = {'Majority Voting (model with lowest MAE)',...
                 'Weighted GLM Average (GLM for weighting models to minimize MAE)',...
@@ -417,7 +420,7 @@ if ~isfield(D,'run_kfold')
   fprintf('Trend method:  \t%d\n',D.trend_method);
   fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
   fprintf('--------------------------------------------------------------\n');
-  if isfield(D,'parcellation') & D.parcellation > 0
+  if isfield(D,'parcellation') & D.parcellation
     fprintf('Estimate local BrainAGE with parcellation into lobes.\n');
   end
 end
@@ -911,17 +914,12 @@ for i = 1:numel(D.res_array)
         end
         
         % add spatial resolution to atlas name
-        if isfield(D,'parcellation') && D.parcellation > 0
+        if isfield(D,'parcellation') && D.parcellation
           atlas_name = ['Brain_Lobes_' D.res 'mm.mat'];
           
           load(atlas_name)
           if ~exist('atlas','var')
             error('Atlas must contain atlas as variable');
-          end
-          
-          % merge left and right hemisphere
-          if D.parcellation == 1
-            atlas(atlas > 5) = atlas(atlas > 5) - 10;
           end
           
           regions = unique(atlas(atlas > 0));
@@ -1138,7 +1136,12 @@ for i = 1:numel(D.res_array)
                 end
               end
                 
-              fprintf('T-test P-value (one-tailed):\n');
+              if D.n_regions > 1
+                region_str = region_names{r};
+              else
+                region_str = '';
+              end
+              fprintf('T-test P-value (one-tailed) %s\n',region_str);
               fprintf('%20s\t','Group');
               for o = 1:n_groups
                 fprintf('%20s\t',deblank(D.name_groups(o,:)));
@@ -1294,7 +1297,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
         fprintf('\n');
       end
     
-      for r=1:D.n_regions
+      for r = 1:D.n_regions
         P = zeros(n_groups,n_groups);
         for o = 1:n_groups
           for p = 1:n_groups
@@ -1302,7 +1305,12 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
           end
         end
       
-        fprintf('T-test P-value (one-tailed):\n');
+        if D.n_regions > 1
+          region_str = region_names{r};
+        else
+          region_str = '';
+        end
+        fprintf('T-test P-value (one-tailed) %s\n',region_str);
         fprintf('%20s\t','Group');
         for o = 1:n_groups
           fprintf('%20s\t',deblank(D.name_groups(o,:)));
@@ -1374,8 +1382,14 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     fprintf('%20s\t',deblank(D.name_groups(o,:)));
   end
 
-  for r=1:D.n_regions
-    fprintf('\n'); fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o,r)); end
+  if D.n_regions > 1, fprintf('\n'); end
+  for r = 1:D.n_regions
+    if D.n_regions > 1
+      fprintf('Region: %s\n',region_names{r});
+    else
+      fprintf('\n'); 
+    end
+    fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o,r)); end
     fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o,r)); end
     fprintf('\n'); fprintf('%20s\t','SD');     for o = 1:n_groups, fprintf('%20.3f\t',SD_BrainAGE(o,r)); end
     fprintf('\n');
@@ -1391,7 +1405,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
         for l = 1:numel(data_cell)
             combined_BA(l,:) = feval(D.spiderplot_func,BA_unsorted_weighted(D.ind_groups{l},:));
         end
-        BA_spider_plot(combined_BA, D.name_groups, [], D.groupcolor);
+        BA_spider_plot(combined_BA, D.name_groups, [], groupcolor);
         set(gcf,'Name','Median Weighted BrainAGE','MenuBar','none');
     else % otherwise use boxplot
         cat_plot_boxplot(data_cell,opt);
@@ -1411,7 +1425,7 @@ end
 
 
 %-------------------------------------------------------------------------------
-function [BA_weighted, PredictedAge_weighted] = ensemble_models(BA,age_all,D,ind_test_array,ind_train_array)
+function [BA_weighted, PredictedAge_weighted] = ensemble_models(BA, age_all, D, ind_test_array, ind_train_array)
 %-------------------------------------------------------------------------------
 % Estimate ensembles to combine different models
 % and calculate weighted BrainAGE score
@@ -1605,7 +1619,7 @@ else
 end
 
 %-------------------------------------------------------------------------------
-function [BrainAGE, PredictedAge, Adjustment] = apply_trend_correction(BrainAGE,age,D,verbose)
+function [BrainAGE, PredictedAge, Adjustment] = apply_trend_correction(BrainAGE, age, D, verbose)
 %-------------------------------------------------------------------------------
 % BrainAGE     - adjusted BrainAGE
 % PredictedAge - adjusted PredictedAge
@@ -1698,16 +1712,14 @@ for i = 1:max(site_adjust)
       % use BrainAGE for obtaining trend
       if D.trend_method == 1
         PredictedAge(ind_site,:)  = PredictedAge(ind_site,:)  - GBeta;
-        BrainAGE = PredictedAge - age;
-        Adjustment{i} = GBeta;
       else
         % use predicted age for obtaining trend
         PredictedAge(ind_site,:)  = (PredictedAge(ind_site,:) - Beta(1));
         if D.trend_degree == 1
           PredictedAge(ind_site,:) = PredictedAge(ind_site,:)/Beta(2);
         end
-        BrainAGE = PredictedAge - age;
       end
+      BrainAGE = PredictedAge - age;
       Adjustment{i} = BrainAGE0(ind_site,:) - BrainAGE(ind_site,:);
     end
   else
