@@ -425,11 +425,16 @@ else
   d  = data(mapped_train, age_train);
   t1 = data(mapped_test, D.age_test);
   
-  [~,model] = rvr_training(s,d);
+  try
+    [~,model] = rvr_training(s,d);
   
-  pred1 = test(model,t1);
-  PredictedAge = pred1.X;
-  
+    pred1 = test(model,t1);
+    PredictedAge = pred1.X;
+  catch
+    fprintf('RVR-prediction failed.\n');
+    PredictedAge = nan(size(D.age_test));
+  end
+
   % sometimes chol function in rvr_training fails and we obtain zero values
   % for EstimatedAge that will be replaced by NaNs
   if std(PredictedAge) == 0

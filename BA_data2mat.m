@@ -8,7 +8,7 @@ function BA_data2mat(D,fwhm,res,seg)
 %
 % Mandatory arguments:
 % D.data      - cell array of data folder(s) that will be concatenated
-% D.release   - confounds data to be removed
+% D.release   - release/version information
 % D.age       - filename for saving mat-file
 % D.name      - output directory of saved mat-file
 %
@@ -99,7 +99,7 @@ files = cell(numel(D.data),1);
 n = 0;
 for i=1:numel(D.data)
   datafolder = fullfile(D.data{i}, subfolder);
-  files{i} = spm_select('FPList',datafolder,['^' seg]);
+  files{i} = spm_select('FPListRec',datafolder,['^' seg]);
   n = n + size(files{i},1);
   if isempty(files{i})
     error('No subjects found in %s\n',datafolder);

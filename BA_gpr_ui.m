@@ -103,9 +103,10 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058
 %                     0 - estimate global BrainAGE
 %                     1 - estimate local BrainAGE for different lobes for both hemispheres
-% D.spiderplot_func - show spider (radar) plot either with mean or median values (only valid if D.parcellation is used):
+% D.spiderplot.func - show spider (radar) plot either with mean or median values (only valid if D.parcellation is used):
 %                     'median' - use median values 
 %                     'mean'   - use mean values (default)
+% D.spiderplot.range- range for spiderplot (default automatically find range)
 %
 % Parameter search
 % ---------------
@@ -150,8 +151,8 @@ else
   end
 end
 
-if ~isfield(D,'spiderplot_func')
-  D.spiderplot_func = 'mean';
+if ~isfield(D,'spiderplot') || (isfield(D,'spiderplot') && ~isfield(D.spiderplot,'func'))
+  D.spiderplot.func = 'mean';
 end
 
 if ~isfield(D,'trend_degree')
@@ -198,6 +199,10 @@ end
 
 if ~isfield(D,'PCA_method')
   D.PCA_method = 'svd';
+end
+
+if ~isfield(D,'parcellation')
+  D.parcellation = 0;
 end
 
 if D.trend_method > 1 && D.trend_degree > 1
@@ -1123,6 +1128,7 @@ for i = 1:numel(D.res_array)
             end
             
 
+            warning off
             for r = 1:D.n_regions
               P = zeros(n_groups,n_groups);
     
@@ -1170,11 +1176,13 @@ for i = 1:numel(D.res_array)
                 fprintf('****************************\n\n');
               end
             end
+            warning on
                 
           else
             fprintf('Warning: BA_anova1 not found.\n');
           end
-  
+
+ 
         elseif isfield(D,'corr') % estimate correlation for one group
           for r=1:D.n_regions
             [R, P] = corrcoef(BrainAGE(~isnan(D.corr),r),D.corr(~isnan(D.corr)));
@@ -1396,18 +1404,28 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     fprintf('\n');
   end
 
-  if D.verbose && sum(isnan(BA_unsorted(:))) == 0
-    figure(24)
-    set(gcf, 'Position',[10 10 900 800])
+  if D.verbose && sum(isnan(BA_unsorted_weighted(:))) == 0
+    f = figure(24);
+    set(f, 'Position',[10 10 900 800])
     
     % show spiderplot for regional BrainAGE
     if D.parcellation
         combined_BA = zeros(numel(data_cell),size(BA_unsorted_weighted,2));
         for l = 1:numel(data_cell)
-            combined_BA(l,:) = feval(D.spiderplot_func,BA_unsorted_weighted(D.ind_groups{l},:));
+            combined_BA(l,:) = feval(D.spiderplot.func,BA_unsorted_weighted(D.ind_groups{l},:));
         end
-        BA_spider_plot(combined_BA, D.name_groups, [], groupcolor);
-        set(gcf,'Name','Median Weighted BrainAGE','MenuBar','none');
+        if isfield(D,'spiderplot') && isfield(D.spiderplot,'range')
+          range = D.spiderplot.range;
+        else
+          range = [];
+        end
+
+        BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Range', range, 'Colors', groupcolor, 'Parent', f);
+        if strcmpi(D.spiderplot.func,'median')
+          set(f,'Name','Median Weighted BrainAGE','MenuBar','none');
+        elseif strcmpi(D.spiderplot.func,'mean')
+          set(f,'Name','Mean Weighted BrainAGE','MenuBar','none');
+        end
     else % otherwise use boxplot
         cat_plot_boxplot(data_cell,opt);
         if style == 1
@@ -1417,7 +1435,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
           set(gca,'YTick',1:n_groups,'YTickLabel',D.name_groups(n_groups:-1:1,:));
           xlabel('BrainAGE [years]');
         end
-        set(gcf,'Name','Weighted BrainAGE','MenuBar','none');
+        set(f,'Name','Weighted BrainAGE','MenuBar','none');
     end
 
     set(gca,'FontSize',20);
@@ -1465,10 +1483,16 @@ end
 
 % remove columns with NaNs where model estimation failed
 BA_corrected = BA;
-[~,indy] = find(isnan(BA_corrected));
-if ~isempty(indy)
-  indy = unique(indy);
-  BA_corrected(:,indy) = [];
+n_regions = size(BA,3);
+indy_all = [];
+for r = 1:n_regions
+  [~,indy] = find(isnan(BA_corrected(:,:,r)));
+  if ~isempty(indy)
+    indy_all = [indy_all unique(indy)];
+  end
+end
+if ~isempty(indy_all)
+  BA_corrected(:,unique(indy_all),:) = [];
 end
 
 if isfield(D,'define_cov')

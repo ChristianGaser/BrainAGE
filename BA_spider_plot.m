@@ -1,12 +1,17 @@
-function BA_spider_plot(data, group_names, range, colors)
+function BA_spider_plot(data, varargin)
 %BA_spider_plot Create a spider or radar plot with individual axes for regional BrainAGE.
 %
 % Syntax:
-%   BA_spider_plot(data, [group_names, range, colors])
+%   BA_spider_plot(data, Name, Value)
 %      data        - data to plot
-%      group_names - group names for legend
-%      range       - axis range for all data points (default [floor(min(data(:))*10)/10; ceil(max(data(:))*10)/10])
+%   Name:
+%      names       - group names for legend (default [])
+%      range       - axis range for all data points (default [floor(min(data(:))); ceil(max(data(:)))])
 %      colors      - colors for each group (default lines(n_groups)
+%      markers     - define group markers (default 'osd^v<>hp')
+%      parent      - figure parent
+%      axesdisplay -  Axes display (default 'one')
+%                     Options: 'all'|'none'|'one'|'data'|'data-percent'
 % ______________________________________________________________________
 %
 % Christian Gaser
@@ -15,9 +20,16 @@ function BA_spider_plot(data, group_names, range, colors)
 % Jena University Hospital
 % ______________________________________________________________________
 
-names = {'R Frontal','R Parietal','R Occipital','R Temporal',{'R Subcortical/','Cerebellum'},...
-         'L Frontal','L Parietal','L Occipital','L Temporal',{'L Subcortical/','Cerebellum'}};
+% Number of optional arguments
+numvarargs = length(varargin);
 
+% Check for even number of name-value pair argments
+if mod(numvarargs, 2) == 1
+    error('Error: Please check name-value pair arguments');
+end
+
+ROInames = {'R Frontal','R Parietal','R Occipital','R Temporal',{'R Subcortical/','Cerebellum'},...
+            'L Frontal','L Parietal','L Occipital','L Temporal',{'L Subcortical/','Cerebellum'}};
 
 % change order so that left and right is correctly displayed
 ind = circshift([1 4 2 3 5 10 8 7 9 6], -2);
@@ -30,8 +42,7 @@ end
 % we have to round values that are quite close to zero because scaling will
 % be otherwise starting with negative values instead of zero 
 if min(data) > -1e-15
-  ind0 = find(data < 1e-5);
-  data(ind0) = 0;
+  data(data < 1e-5) = 0;
 end
 
 % change order
@@ -44,31 +55,93 @@ end
 n_groups  = size(P,1);
 n_regions = size(P,2);
 
-% estimate range and use ceil/floor with defined precision
-if (nargin < 3) || (nargin > 2 && isempty(range))
-  range = [floor(min(data(:))*10)/10; ceil(max(data(:))*10)/10]
+% Default arguments
+names       = [];
+range       = [floor(min(data(:))); ceil(max(data(:)))]; % use ceil/floor
+colors      = lines(n_groups);
+markers     = 'osd^v<>hp';
+axesdisplay = 'one';
+
+% Check if optional arguments were specified
+if numvarargs > 1
+    % Initialze name-value arguments
+    name_arguments = varargin(1:2:end);
+    value_arguments = varargin(2:2:end);
+    
+    % Iterate through name-value arguments
+    for ii = 1:length(name_arguments)
+        % Set value arguments depending on name
+        switch lower(name_arguments{ii})
+            case 'names'
+                names = value_arguments{ii};
+            case 'range'
+                range = value_arguments{ii};
+            case 'colors'
+                colors = value_arguments{ii};
+            case 'markers'
+                markers = value_arguments{ii};
+            case 'parent'
+                parent = value_arguments{ii};
+            case 'axesdisplay'
+                axesdisplay = value_arguments{ii};
+            otherwise
+                error('Error: Please enter in a valid name-value pair.');
+        end
+    end
 end
 
-if nargin < 4
-  colors = lines(n_groups);
+% create figure if not defined
+if ~exist('parent','var')
+  parent = figure;
 end
+
+% estimate axes interval to prevent floating numbers in plot
+df = diff(range);
+axesinterval = df;
+while axesinterval == df
+  df = diff(range);
+  if ~rem(df,5)
+    axesinterval = df/5;
+  elseif ~rem(df,4)
+    axesinterval = df/4;
+  elseif ~rem(df,3)
+    axesinterval = df/3;
+  elseif ~rem(df,2)
+    axesinterval = df/2;
+  else
+    range(2) = range(2) + 1;
+  end
+end
+
+markers = mat2cell(markers, 1, ones(1,numel(markers))); %#ok<MMTC> 
 
 spider_plot(P,...
-    'AxesLabels', names(ind),...
+    'AxesLabels', ROInames(ind),...
     'AxesLimits', repmat([range(1); range(2)],1,n_regions),...
     'Color', colors,...
     'FillOption', {'on'},...
-    'FillTransparency', 0.2,...
+    'FillTransparency', 0.1,...
     'AxesStart', 0,...
     'LabelFontSize', 24,...
     'AxesPrecision', 1,...
-    'AxesInterval', 3,...
+    'AxesInterval', axesinterval,...
     'AxesLabelsEdge','w',...
-    'AxesFontSize', 20);
+    'AxesFontSize', 20, ...
+    'marker', markers,  ... % added
+    'markersize', 96, ... 
+    'axesDisplay', axesdisplay, ...  % all|none|one|data|data-percent - keep it simple 
+    'axesOffset' , 0, ... % add an inner circle (integer value)
+    'axesDataOffset', 0, ... % 
+    'axesFontColor', 0.4 * ones(1,3), ... % to have it similar to the axes color 
+    'axesLabelsOffset', 0.14, ...
+    'axesZoom', 0.8 ...
+    );
 
-if nargin > 1
-  hl = legend(strrep(cellstr(group_names),'_','-'),'Location','SouthOutside','FontSize',24);
+if ~isempty(names)
+  hl = legend(strrep(cellstr(names),'_','-'),'Location','SouthOutside','FontSize',24);
 end
+
+set(parent,'Name','Mean Weighted BrainAGE','MenuBar','none');
 
 end
 
@@ -162,7 +235,7 @@ axes_data_offset = 0.1;
 axes_scaling = 'linear';
 axes_color = [0.6, 0.6, 0.6];
 axes_labels_edge = 'k';
-axes_offset = 1;
+axes_offset = 1; 
 axes_zoom = 0.7;
 axes_horz_align = 'center';
 axes_vert_align = 'middle';
@@ -906,10 +979,17 @@ ax.YTickLabel = [];
 ax.XColor = 'none';
 ax.YColor = 'none';
 
-% Polar increments
+% Polar increments ######## CHANGED ########
+% RD202311: To avoid an unused inner circle I removed the " + 1" from  
+%           the full_intervall definiton and set the rho_offset to 0.
 theta_increment = 2*pi/num_data_points;
-full_interval = axes_interval + 1;
-rho_offset = axes_offset/full_interval;
+if axes_offset > 0
+  full_interval = axes_interval + 1;  
+  rho_offset = axes_offset/full_interval;
+else
+  full_interval = axes_interval; 
+  rho_offset = 0; 
+end
 
 %%% Scale Data %%%
 % Number of shaded rows
@@ -1096,7 +1176,7 @@ if strcmp(axes_zero, 'on') && strcmp(axes_display, 'one')
     end
 
     % Add offset of [rho_offset] and scaling factor of [1 - rho_offset]
-    zero_scaled = zero_scaled * (1 - rho_offset) + rho_offset;
+    zero_scaled = zero_scaled * (1 - rho_offset) + rho_offset; 
 
     % Convert polar to cartesian coordinates
     [x_axes, y_axes] = pol2cart(theta, zero_scaled);
@@ -1137,6 +1217,14 @@ for ii = 1:theta_end_index
     % Convert polar to cartesian coordinates
     [x_axes, y_axes] = pol2cart(theta(ii), rho);
     
+    % ######
+    % RD202311: added a little ofset to have it above the x-axis.
+    % ######
+    switch axes_display
+      case 'one'
+        y_axes = y_axes + 0.05;
+    end
+
     % Check if horizontal alignment is quadrant based
     if strcmp(axes_horz_align, 'quadrant')
         % Alignment based on quadrant
@@ -1357,9 +1445,13 @@ for ii = 1:num_data_groups
         h.Annotation.LegendInformation.IconDisplayStyle = 'off';
 
         % Plot empty line with combined attributes for legend
+        % #####
+        % RD202311: in the legend the markers are too large and it is
+        % better to devide by 2 to have the same size as in the figure
+        % #####
         plot(ax, nan, nan,...
             'Marker', marker_type{ii},...
-            'MarkerSize', marker_size(ii)/6,...
+            'MarkerSize', marker_size(ii)/6 / 2,... % <<< added / 2 
             'MarkerFaceColor', colors(ii, :),...
             'MarkerEdgeColor', colors(ii, :),...
             'LineStyle', line_style{ii},...
@@ -1388,7 +1480,7 @@ for ii = 1:num_data_groups
             % Display axes text
             text(ax, x_pos, y_pos, text_str,...
                 'Units', 'Data',...
-                'Color', axes_font_color(ii, :),...
+                'Color', colors(ii,:) , ... % RD:202311: axes_font_color(ii, :),...
                 'FontName', axes_font,...
                 'FontSize', axes_font_size,...
                 'HorizontalAlignment', 'center',...

@@ -183,5 +183,5 @@ a.gamma=gamma;
 a.trained=1;
 
 if (~a.algorithm.do_not_evaluate_training_error)
-     dat=test(a,dat);    
+  dat=test(a,dat);    
 end
