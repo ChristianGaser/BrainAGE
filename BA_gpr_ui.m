@@ -334,7 +334,7 @@ if ~isfield(D,'n_data')
     ind_plus = [0 ind_plus length(D.data)+1];
     n_train = numel(ind_plus)-1;
     
-    for l=1:n_train
+    for l = 1:n_train
       load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
       age0 = [age0; age];
       if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
@@ -464,7 +464,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
     offset_TPs = find(diff(D.k_fold_TPs), 1 );
     
     ns = [];
-    for i=1:n_TPs
+    for i = 1:n_TPs
       ns = [ns sum(D.k_fold_TPs==i)];
     end
     
@@ -485,7 +485,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       ind_age = ind_age * n_TPs - (n_TPs-1);
     end
     
-    for i=1:n_TPs-1
+    for i = 1:n_TPs-1
       ind_age = [ind_age; ind_age+i*offset_TPs];
     end
   else
@@ -575,7 +575,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   n_entries = sum(BA_all(:,:,1)~=0,2);
   BA_all0 = squeeze(sum(BA_all,2))./n_entries;
   BA_all = zeros(D.n_data,size(BA_fold_all,2)/D.n_regions,D.n_regions);
-  for k=1:D.n_data
+  for k = 1:D.n_data
     BA_all(k,:,:) = squeeze(BA_all0(k,:,:))';
   end
 
@@ -602,14 +602,14 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   if isfield(D,'ensemble')
     BA_unsorted_weighted = [];
 
-    for m=1:numel(D.ensemble)
+    for m = 1:numel(D.ensemble)
       D0.ensemble = D.ensemble(m);
       
       % for GPR stacking we have to initially apply trend correction (to
       % all single models)
       if D.trend_degree >= 0 && D0.ensemble == 4
         BA_all1 = BA_all;
-        for i=1:size(BA_all,2)
+        for i = 1:size(BA_all,2)
           BA_all1(:,i) = apply_trend_correction(BA_all(:,i),age,D,0);
         end
         [~, PredictedAge_unsorted_weighted] = ensemble_models(BA_all1,age,D0,ind_test_array,ind_train_array);
@@ -706,7 +706,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       % apply trend correction for each site separately
       for i = 1:max(site_adjust)
         ind_site = find(site_adjust == i);
-        for j=1:size(BA_all,2)
+        for j = 1:size(BA_all,2)
           BA_all(ind_site,j,:) = squeeze(BA_all(ind_site,j,:)) - Adjustment{i};
         end
       end
@@ -757,7 +757,7 @@ for i = 1:numel(D.res_array)
         if ~isempty(ind_plus)
           ind_plus = [0 ind_plus length(training_sample)+1];
           n_train = numel(ind_plus)-1;
-          for l=1:n_train
+          for l = 1:n_train
             D.training_sample{l} = training_sample(ind_plus(l)+1:ind_plus(l+1)-1);
           end
         else
@@ -769,7 +769,7 @@ for i = 1:numel(D.res_array)
         if ~isempty(ind_plus)
           ind_plus = [0 ind_plus length(seg)+1];
           n_seg = numel(ind_plus)-1;
-          for l=1:n_seg
+          for l = 1:n_seg
             D.seg{l} = seg(ind_plus(l)+1:ind_plus(l+1)-1);
           end
         else
@@ -792,7 +792,7 @@ for i = 1:numel(D.res_array)
           site_adjust = [];
           ind_plus = [0 ind_plus length(D.data)+1];
           n_train = numel(ind_plus)-1;
-          for l=1:n_train
+          for l = 1:n_train
             name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber];
             if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
             load(name);
@@ -855,7 +855,7 @@ for i = 1:numel(D.res_array)
             Y0    = [];
             ind_plus = [0 ind_plus length(D.data)+1];
             n_train = numel(ind_plus)-1;
-            for m=1:n_train
+            for m = 1:n_train
               name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber];
               if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
               load(name);
@@ -1005,7 +1005,7 @@ for i = 1:numel(D.res_array)
           fprintf('%s %s %s | test data: n=%d MAE/corr:',...
              D.res,D.smooth,seg,numel(D.ind_adjust));
         end
-        for r=1:D.n_regions
+        for r = 1:D.n_regions
           fprintf(' %2.3f/%1.3f',MAE(r),cc(end,r));
         end
         fprintf('\n');
@@ -1098,7 +1098,7 @@ for i = 1:numel(D.res_array)
         end
         
         % print BrainAGE of groups
-        if D.verbose >1
+        if D.verbose > 1
           fprintf('BrainAGE [years]:\n');
           fprintf('%20s\t','Group');
           for o = 1:n_groups
@@ -1120,7 +1120,7 @@ for i = 1:numel(D.res_array)
             end
             if D.verbose > 1
               fprintf('\nANOVA P-value: ');
-              for r=1:D.n_regions
+              for r = 1:D.n_regions
                 Panova = BA_anova1(data(:,r),group,'off');
                 fprintf('%f ',Panova);
               end
@@ -1184,7 +1184,7 @@ for i = 1:numel(D.res_array)
 
  
         elseif isfield(D,'corr') % estimate correlation for one group
-          for r=1:D.n_regions
+          for r = 1:D.n_regions
             [R, P] = corrcoef(BrainAGE(~isnan(D.corr),r),D.corr(~isnan(D.corr)));
             fprintf('Correlation r=%g (P=%g)\n',R(1,2),P(1,2));
           end
@@ -1201,7 +1201,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   if D.n_regions > 1
     BA_unsorted0 = reshape(BA_unsorted,D.n_data,D.n_regions,size(BA_unsorted,2)/D.n_regions);
     BA_unsorted = zeros(D.n_data,size(BA_unsorted,2)/D.n_regions,D.n_regions);
-    for k=1:D.n_data
+    for k = 1:D.n_data
       BA_unsorted(k,:,:) = squeeze(BA_unsorted0(k,:,:))';
     end
   end
@@ -1223,7 +1223,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
       MAE_weighted = mean(abs(BA_unsorted_weighted1(D.ind_adjust,:)));
       cc = corrcoef([BA_unsorted_weighted1+age age]);
       fprintf('Weighted MAE/correlation (testdata): '); 
-      for r=1:D.n_regions
+      for r = 1:D.n_regions
         fprintf(' %2.3f/%1.3f',MAE_weighted(r),cc(end,r));
       end
       fprintf('\n');
@@ -1243,7 +1243,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   cc = corrcoef([BA_unsorted_weighted0+age age]);
   fprintf('-----------------------------------------------------------------\n'); 
   fprintf('Weighted MAE/correlation (testdata): '); 
-  for r=1:D.n_regions
+  for r = 1:D.n_regions
     fprintf(' %2.3f/%1.3f',MAE_ctl_weighted(r),cc(end,r));
   end
   fprintf('\n');
@@ -1299,7 +1299,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
 
       if D.verbose > 1
         fprintf('\nWeighted ANOVA P-value: ');
-        for r=1:D.n_regions
+        for r = 1:D.n_regions
           Panova = BA_anova1(BA_weighted(:,r),group,'off');
           fprintf('%f ',Panova);
         end
@@ -1518,7 +1518,7 @@ case 1   % use GLM estimation to minimize MAE
   
   BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
   fprintf('Estimated Betas using %d subjects:\n',numel(D.ind_adjust));
-  for r=1:D.n_regions
+  for r = 1:D.n_regions
     PredictedAge_ind = PredictedAge_corrected(D.ind_adjust,:,r);
     Beta = pinv(PredictedAge_ind)*age(D.ind_adjust);
   
@@ -1543,7 +1543,7 @@ case 3   % use GLM estimation to maximize group differences or correlation (EXPE
     c = D.contrast;
     D.contrast = [];
     ind = [];
-    for i=1:numel(D.ind_groups)
+    for i = 1:numel(D.ind_groups)
       D.contrast = [D.contrast; repmat(c(i,:),numel(D.ind_groups{i}),1)];
       ind = [ind; D.ind_groups{i}];
     end
@@ -1566,7 +1566,7 @@ case 3   % use GLM estimation to maximize group differences or correlation (EXPE
 
   if group_diff
     X = []; Y = [];
-    for i=1:size(D.contrast,2)
+    for i = 1:size(D.contrast,2)
       if any(D.contrast(:,i) ~= 0)
         X = [X; D.contrast(:,i)*ones(numel(D.ind_groups{i}),1)];  
         Y = [Y; BA_corrected(D.ind_groups{i},:)];  
@@ -1579,7 +1579,7 @@ case 3   % use GLM estimation to maximize group differences or correlation (EXPE
   
   % use only those data that are defined in ind_groups
   ind = [];
-  for i=1:numel(D.ind_groups)
+  for i = 1:numel(D.ind_groups)
     ind = [ind; D.ind_groups{i}];
   end
   
@@ -1605,7 +1605,7 @@ case 4   % Stacking: use GPR to combine models
   PredictedAge_ind = PredictedAge_corrected;
   BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
   
-  for i=1:numel(ind_test_array)
+  for i = 1:numel(ind_test_array)
     
     % get indices for training and test and only include data that are
     % defined in D.ind_adjust
@@ -1614,7 +1614,7 @@ case 4   % Stacking: use GPR to combine models
     ind_test  = ind_test_array{i};
     ind_test  = ind_test(ismember(ind_test,D.ind_adjust));
     
-    for r=1:D.n_regions
+    for r = 1:D.n_regions
       Y_train = PredictedAge_ind(ind_train,:,r);
       Y_test  = PredictedAge_ind(ind_test,:,r);
     
@@ -1628,7 +1628,7 @@ case 4   % Stacking: use GPR to combine models
 
 case 5 % weighted average of all models w.r.t. MAE
   BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
-  for r=1:D.n_regions
+  for r = 1:D.n_regions
     MAE = mean(abs(BA_corrected(:,:,r)));
     weight = 1./MAE.^2;
     weight = weight/mean(weight);
@@ -1678,7 +1678,7 @@ for i = 1:max(site_adjust)
   
   % build index for each site
   ind_site_adjust = [];
-  for j=1:length(D.ind_adjust)
+  for j = 1:length(D.ind_adjust)
     if site_adjust(D.ind_adjust(j)) == i
       ind_site_adjust = [ind_site_adjust; D.ind_adjust(j)];
     end
