@@ -59,6 +59,7 @@ n_regions = size(P,2);
 names       = [];
 range       = [floor(min(data(:))); ceil(max(data(:)))]; % use ceil/floor
 colors      = lines(n_groups);
+markers     = 'o';
 markers     = 'osd^v<>hp';
 axesdisplay = 'one';
 
@@ -113,6 +114,11 @@ while axesinterval == df
   end
 end
 
+% check that enough markers are defined
+if numel(markers) < n_groups
+  markers = markers(1);
+end
+markers = markers(1:n_groups);
 markers = mat2cell(markers, 1, ones(1,numel(markers))); %#ok<MMTC> 
 
 spider_plot(P,...
@@ -781,7 +787,7 @@ elseif iscellstr(marker_type)
         % Repeat cell to number of data groups
         marker_type = repmat(marker_type, num_data_groups, 1);
     elseif length(marker_type) ~= num_data_groups
-        error('Error: Please specify the same number of line styles as number of data groups.');
+        error('Error: Please specify the same number of marker types as number of data groups.');
     end
 else
     error('Error: Please make sure the line style is a char or a cell array of char.');
