@@ -135,7 +135,7 @@ files = cell(numel(D.data),1);
 n = 0;
 for i=1:numel(D.data)
   datafolder = fullfile(D.data{i}, subfolder);
-  files{i} = spm_select('FPListRec',datafolder,['^' seg]);
+  files{i} = spm_select('FPList',datafolder,['^' seg]);
   k = (n + 1):(n + size(files{i},1));
   n = n + size(files{i},1);
   
@@ -158,7 +158,7 @@ if numel(age) ~= n
   fprintf('Only %d of %d values for age found.\n',numel(age),n);
 end
 
-name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release];
+name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release '.mat'];
 
 % save mat-files using cat_io_data2mat
 cat_io_data2mat(struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',cat_get_defaults('extopts.brainmask'),...
