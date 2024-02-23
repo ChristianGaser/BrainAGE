@@ -272,9 +272,13 @@ if isfield(D,'ind_train')
 end
 
 ind_age    = find(age_train >= D.age_range(1) & age_train <= D.age_range(2));
-age_train  = age_train(ind_age);
-if ~isempty(male_train), male_train = male_train(ind_age); end
-Y_train    = Y_train(ind_age,:);
+if isfield(D,'k_fold') && D.k_fold > 0 && numel(ind_age) < numel(age_train)
+  fprintf('Warning: Limiting age range is not allowed for k-fold validation.\n');
+else
+  age_train  = age_train(ind_age);
+  if ~isempty(male_train), male_train = male_train(ind_age); end
+  Y_train    = Y_train(ind_age,:);
+end
 
 % remove subjects where standard deviation of mean covariance > D.threshold_std
 if ~isinf(D.threshold_std)
