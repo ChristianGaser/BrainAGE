@@ -16,9 +16,10 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %          OASIS316 - OASIS
 %       OASIS3_1752 - OASIS3 (all time points of 549 subjects)
 %        OASIS3_549 - OASIS3 (only last time point)
-%         CamCan652 - CamCan
+%         CamCan651 - CamCan
 %           SALD494 - SALD
-%           NKIe629 - NKIe
+%           NKIe629 - NKIe (minimum age 6y)
+%           NKIe516 - NKIe (minimum age 18y)
 %     ADNI231Normal - ADNI Normal-sc-1.5T 
 %
 %     Children data:
@@ -69,6 +70,12 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.k_fold_reps     - Number of repeated k-fold cross-validation
 % D.k_fold_rand     - As default the age values for the training sample is sorted and every k-th data is selected for training to minimize age 
 %                     differences between training and test data. With k_fold_rand you can set the seed for the random number generator.
+% D.p_dropout       - Dropout probability to randomly exclude voxels/data points to implement an uncertainty-aware approach using a 
+%                     Monte-Carlo Dropout during inference. That means that during testing, voxels are randomly dropped out according 
+%                     to the dropout probabilities. This process is repeated multiple times, and each time, the model produces 
+%                     a different output. By averaging these outputs, we can obtain a more robust prediction and estimate the model's 
+%                     uncertainty in its predictions. A meaningful dropout probability is 0.1, which means that 10% of the data points 
+%                     are excluded. The default is 0.
 % D.ensemble        - ensemble method to combine different models
 %                     0 - Majority voting: use model with lowest MAE
 %                     1 - Weighted GLM average: use GLM estimation to estimate model weights to minimize MAE
@@ -266,6 +273,11 @@ if isfield(D,'k_fold_rand') && D.k_fold_reps > 1
   error('D.k_fold_rand cannot be used together with D.k_fold_reps because repeated k-fold would always use the same random numbers without variations.');
 end
 
+% set default for droput probability 
+if ~isfield(D,'p_dropout')
+  D.p_dropout = 0;
+end
+
 if iscell(D.data)
   D.data = char(D.data);
 end
@@ -421,6 +433,9 @@ if ~isfield(D,'run_kfold')
   if isfield(D,'k_fold')
     fprintf('k-Fold:       \t%d\n',D.k_fold);
   end
+  if D.p_dropout
+    fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
+  end
   if D.RVR
     fprintf('RVR:          \t%d\n',D.RVR);
   end
@@ -450,7 +465,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   ind_all  = [];
   age_all  = [];
   BA_all   = [];
-    
+  
   % ensure that this field is always defined and set to ones by default
   if ~isfield(D,'k_fold_TPs')
     D.k_fold_TPs = ones(D.n_data,1);
@@ -496,7 +511,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   end
 
   min_hyperparam = cell(numel(D.res_array),numel(D.smooth_array),numel(D.seg_array),numel(D.train_array));
-
+  
   for rep = 1:D.k_fold_reps
     
     % control random number generation to get always the same seeds

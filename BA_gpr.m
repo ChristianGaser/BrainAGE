@@ -26,6 +26,12 @@ function [BrainAGE, PredictedAge, D] = BA_gpr(D)
 %                    'eig' Eigenvalue Decomposition of the covariance matrix (faster but less accurate, for compatibiliy)
 %                    'svd' Singular Value Decomposition of X (the default)
 % D.dir             - directory for databases and code
+% D.p_dropout       - Dropout probability to randomly exclude voxels/data points to implement an uncertainty-aware approach using a 
+%                     Monte-Carlo Dropout during inference. That means that during testing, voxels are randomly dropped out according 
+%                     to the dropout probabilities. This process is repeated multiple times, and each time, the model produces 
+%                     a different output. By averaging these outputs, we can obtain a more robust prediction and estimate the model's 
+%                     uncertainty in its predictions. A meaningful dropout probability is 0.1, which means that 10% of the data points 
+%                     are excluded. The default is 0.
 % D.verbose         - verbose level (default=1), set to "0" to suppress long outputs
 % D.threshold_std   - all data with a standard deviation > D.threshold_std of mean covariance are excluded
 %                     (after covarying out effects of age)
@@ -103,6 +109,10 @@ end
 
 if ~isfield(D,'nuisance')
   D.nuisance = [];
+end
+
+if ~isfield(D,'p_dropout')
+  D.p_dropout = 0;
 end
 
 if ~isfield(D,'dir')
@@ -397,7 +407,7 @@ if D.PCA
 
   clear Y_train
   mapped_test = (Y_test - repmat(mapping.mean, [size(Y_test, 1) 1])) * mapping.M;
-  clear mapping
+  if ~D.p_dropout, clear mapping; end
   
   % we have to use double format for GPR
   mapped_train = double(mapped_train);
@@ -420,8 +430,13 @@ end
 
 % Regression using GPR
 if ~D.RVR
-  PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
+  if D.PCA && D.p_dropout
+    PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
+            D.hyperparam.mean, D.hyperparam.lik, D.p_dropout, mapping, D.Y_test);
+  else
+    PredictedAge = BA_gpr_core(mapped_train, age_train, mapped_test, ...
             D.hyperparam.mean, D.hyperparam.lik);
+  end
   BrainAGE = PredictedAge-D.age_test;
 else
   % Regression using RVR
