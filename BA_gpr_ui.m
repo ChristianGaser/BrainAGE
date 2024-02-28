@@ -1437,13 +1437,13 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
         for l = 1:numel(data_cell)
             combined_BA(l,:) = feval(D.spiderplot.func,BA_unsorted_weighted(D.ind_groups{l},:));
         end
-        if isfield(D,'spiderplot') && isfield(D.spiderplot,'range')
-          range = D.spiderplot.range;
-        else
-          range = [];
+        if isfield(D,'spiderplot')
+          if isfield(D.spiderplot,'range')
+          BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
+          else
+            BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f);
+          end
         end
-
-        BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f);
         if strcmpi(D.spiderplot.func,'median')
           set(f,'Name','Median Weighted BrainAGE','MenuBar','none');
         elseif strcmpi(D.spiderplot.func,'mean')
