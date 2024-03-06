@@ -117,7 +117,7 @@ end
 if isfield(D,'subfolder'), subfolder = D.subfolder;
 else, subfolder = [seg D.release D.add_str]; end
 
-if isfield(D,'male'), male = D.male;
+if isfield(D,'male') male = D.male;
 else, male = []; end
 
 % find indices within defined age range
@@ -161,5 +161,10 @@ end
 name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release '.mat'];
 
 % save mat-files using cat_io_data2mat
-cat_io_data2mat(struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',cat_get_defaults('extopts.brainmask'),...
+if if isfield(D,'male')
+  cat_io_data2mat(struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',cat_get_defaults('extopts.brainmask'),...
    'fname',name),struct('age',age,'male',male));
+else
+  cat_io_data2mat(struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',cat_get_defaults('extopts.brainmask'),...
+   'fname',name),struct('age',age));
+end
