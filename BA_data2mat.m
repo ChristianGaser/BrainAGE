@@ -161,7 +161,7 @@ end
 name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release '.mat'];
 
 % save mat-files using cat_io_data2mat
-if if isfield(D,'male')
+if isfield(D,'male')
   cat_io_data2mat(struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',cat_get_defaults('extopts.brainmask'),...
    'fname',name),struct('age',age,'male',male));
 else
