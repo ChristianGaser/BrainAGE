@@ -180,6 +180,11 @@ if ~isfield(D,'ensemble')
   D.ensemble = 5;
 end
 
+if D.ensemble < 0 && ~exist('fmincon')
+  fprintf('In order to use non-linear optimization you need the Optimization Toolbox.\n');
+  return
+end
+
 if ~isfield(D,'age_range')
   D.age_range = [0 Inf];
 end
@@ -966,7 +971,11 @@ for i = 1:numel(D.res_array)
             fprintf('\n');
           end
           fprintf('\n%d subjects used for prediction (age %3.1f..%3.1f years)\n',length(age),min(age),max(age));
-          fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(age),std(age),sum(male),length(age)-sum(male));
+          if exist('male','var')
+            fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(age),std(age),sum(male),length(age)-sum(male));
+          else
+            fprintf('Mean age\t%g (SD %g) years\n',mean(age),std(age));
+          end
           if ~isfinite(D.threshold_std)
             fprintf('\n');
           end
@@ -1540,7 +1549,7 @@ case 0   % use model with lowest MAE
 case 1   % use GLM estimation to minimize MAE
   
   BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
-  fprintf('Estimated Betas using %d subjects:\n',numel(D.ind_adjust));
+  fprintf('Estimated weights using %d subjects:\n',numel(D.ind_adjust));
   for r = 1:D.n_regions
     PredictedAge_ind = PredictedAge_corrected(D.ind_adjust,:,r);
     Beta = pinv(PredictedAge_ind)*age(D.ind_adjust);
@@ -1607,25 +1616,25 @@ case {3, -3}   % use GLM estimation to maximize group differences or correlation
   for i = 1:numel(D.ind_groups)
     ind = [ind; D.ind_groups{i}];
   end
-  
+    
   if group_diff
-    % use GLM if ensemble_method is positive
-    if ensemble_method > 0
-      Beta = pinv(Y)*X;
-    else % use non-negative LS approach
-      Beta = nnls(Y,X);
-      if all(Beta == 0)
-        Beta = nnls(Y,-X);
-      end
-    end
+    Yind = Y;
+    Yind = X;
   else
     % we have to excluded NaNs for Beta estimation
     ind_finite = all(isfinite(X),2);
-    Beta = pinv(Y(ind(ind_finite),:))*X(ind_finite,:);
+    Yind = Y(ind(ind_finite),:);
+    Xind = X(ind_finite,:);
   end
-  %Beta = Beta./sum(Beta); % ensure that sum is 1
+  
+  if ensemble_method > 0
+    Beta = pinv(Yind)*Xind;
+  else % use non-linear optimization
+    Beta = nonlin_optim(Yind, Xind);
+  end
 
-  fprintf('\nPredicted Betas using %d subjects:\t',numel(D.ind_adjust));
+
+  fprintf('\nPredicted weights using %d subjects:\t',numel(D.ind_adjust));
   fprintf('%.2f ',Beta);
   fprintf('\n');
 
@@ -1749,23 +1758,22 @@ case {6, -6}   % use GLM estimation for mean tissue to maximize group difference
   end
   
   if group_diff
-    % use GLM if ensemble_method is positive
-    if ensemble_method > 0
-      Beta = pinv(Y)*X;
-    else % use non-negative LS approach
-      Beta = nnls(Y,X);
-      if all(Beta == 0)
-        Beta = nnls(Y,-X);
-      end
-    end
+    Yind = Y;
+    Yind = X;
   else
     % we have to excluded NaNs for Beta estimation
     ind_finite = all(isfinite(X),2);
-    Beta = pinv(Y(ind(ind_finite),:))*X(ind_finite,:);
+    Yind = Y(ind(ind_finite),:);
+    Xind = X(ind_finite,:);
   end
-  %Beta = Beta./sum(Beta); % ensure that sum is 1
+  
+  if ensemble_method > 0
+    Beta = pinv(Yind)*Xind;
+  else % use non-linear optimization
+    Beta = nonlin_optim(Yind, Xind);
+  end
 
-  fprintf('\nPredicted Betas using %d subjects:\t',numel(D.ind_adjust));
+  fprintf('\nPredicted weights using %d subjects:\t',numel(D.ind_adjust));
   fprintf('%.2f ',Beta);
   fprintf('\n');
 
@@ -1910,237 +1918,51 @@ end
 %-------------------------------------------------------------------------------
 function C = nejm
 %-------------------------------------------------------------------------------
-  C = [
-    '#BC3C29'
-    '#0072B5'
-    '#E18727'
-    '#20854E'
-    '#7876B1'
-    '#6F99AD'
-    '#FFDC91'
-    '#EE4C97'
-    '#8C564B'
-    '#BCBD22'
-    '#00A1D5'
-    '#374E55'
-    '#003C67'
-    '#8F7700'
-    '#7F7F7F'    
-    '#353535'    
-  ];
-  C = reshape(sscanf(C(:,2:end)','%2x'),3,[]).'/255;
+C = [
+  '#BC3C29'
+  '#0072B5'
+  '#E18727'
+  '#20854E'
+  '#7876B1'
+  '#6F99AD'
+  '#FFDC91'
+  '#EE4C97'
+  '#8C564B'
+  '#BCBD22'
+  '#00A1D5'
+  '#374E55'
+  '#003C67'
+  '#8F7700'
+  '#7F7F7F'    
+  '#353535'    
+];
+C = reshape(sscanf(C(:,2:end)','%2x'),3,[])./255;
+C = C';
 
-function [x,w,info]=nnls(C,d,opts)
-% nnls  Non negative least squares Cx=d x>=0 w=C'(d-Cx)<=0
-%  2012-08-21  Matlab8  W.Whiten
-%  2013-02-17  Line 52 added
-%  Copyright (C) 2012, W.Whiten (personal W.Whiten@uq.edu.au) BSD license
-%  (http://opensource.org/licenses/BSD-3-Clause)
-%
-% [x,w,info]=nnls(C,d,opts)
-%  C    Coefficient matrix
-%  d    Rhs vector
-%  opts Struct containing options: (optional)
-%        .Accy  0 fast version, 1 refines final value (default), 
-%                 2 uses accurate steps but very slow on large cases, 
-%                 faster on small cases, result usually identical to 1
-%        .Order True or [], or order to initially include positive terms
-%                 if included will supply info.Order, if x0 available use 
-%                 find(x0>0), but best saved from previous run of nnls
-%        .Tol   Tolerance test value, default zero, use multiple of eps
-%        .Iter  Maximum number of iterations, should not be needed.
-%
-%  x    Positive solution vector x>=0
-%  w    Lagrange multiplier vector w(x==0)<= approx zero
-%  info Struct with extra information: 
-%        .iter  Number of iterations used
-%        .wsc0  Estimated size of errors in w
-%        .wsc   Maximum of test values for w
-%        .Order Order variables used, use to restart nnls with opts.Order
-%
-% Exits with x>=0 and w<= zero or slightly above 0 due to
-%  rounding and to ensure for convergence
-% Using faster matrix operations then refines answer as default (Accy 1).
-% Accy 0 is more robust in singular cases.
-%
-% Follows Lawson & Hanson, Solving Least Squares Problems, Ch 23.
-[~,n]=size(C);
-maxiter=4*n;
-% inital values
-P=false(n,1);
-x=zeros(n,1);
-z=x;
-w=C'*d;
-% wsc_ are scales for errors
-wsc0=sqrt(sum(w.^2));
-wsc=zeros(n,1);
-tol=3*eps;
-accy=1;
-pn1=0;
-pn2=0;
-pn=zeros(1,n);
-% see if option values have been given
-ind=true;
-if(nargin>2)
-    if(isfield(opts,'Tol'))
-        tol=opts.Tol;
-        wsc(:)=wsc0*tol;
-    end
-    if(isfield(opts,'Accy'))
-        accy=opts.Accy;
-    end
-    if(isfield(opts,'Iter'))
-        maxiter=opts.Iter;
-    end
-end
-% test if to use normal matrix for speed
-if(accy<2)
-    A=C'*C;
-    b=C'*d;
-    %L=zeros(n,n);
-    LL=zeros(0,0);
-    lowtri=struct('LT',true);
-    uptri=struct('UT',true);
-end
-% test if initial information given
-if(nargin>2)
-    if(isfield(opts,'Order') && ~islogical(opts.Order))
-        pn1=length(opts.Order);
-        pn(1:pn1)=opts.Order;
-        P(pn(1:pn1))=true;
-        ind=false;
-    end
-    if(~ind && accy<2)
-        %L(1:pn1,1:pn1)=chol(A(pn(1:pn1),pn(1:pn1)),'lower');
-        UU(1:pn1,1:pn1)=chol(A(pn(1:pn1),pn(1:pn1)));
-        LL=UU';
-    end
-    pn2=pn1;
-end
-% loop until all positive variables added
-iter=0;
-while(true)
-    
-    % Check if no more terms to be added
-    if(ind && (all(P==true) || all(w(~P)<=wsc(~P))))
-        if(accy~=1)
-            break
-        end
-        accy=2;
-        ind=false;
-    end
-    % skip if first time and initial Order given
-    if(ind)
-        % select best term to add
-        ind1=find(~P);
-        [~,ind2]=max(w(ind1)-wsc(ind1));
-        ind1=ind1(ind2);
-        P(ind1)=true;
-        pn2=pn1+1;
-        pn(pn2)=ind1;
-    end
-    
-    % loop until all negative terms are removed
-    while(true)
-        
-        % check for divergence
-        iter=iter+1;
-        if(iter>=2*n)
-            if(iter>maxiter)
-                error(['nnls Failed to converge in ' num2str(iter)  ...
-                    ' iterations'])
-                %warning(['nnls Failed to converge in ' num2str(iter)  ...
-                %    ' iterations'])
-                %return
-            elseif(mod(iter,n)==0)
-                wsc=(wsc+wsc0*tol)*2;
-            end
-        end
-        
-        % solve using suspected positive terms
-        z(:)=0;
-        if(accy>=2)
-            z(P)=C(:,P)\d;
-        else
-            % add row to the lower triangular factor
-            for i=pn1+1:pn2
-                i1=i-1;
-                %LL=L(1:i1,1:i1);
-                %LL=LL(1:i1,1:i1);
-                t=linsolve(LL,A(pn(1:i1),pn(i)),lowtri);
-                %t=LL\A(pn(1:i1),pn(i));
-                %L(i,1:i1)=t;
-                %LL(i,1:i1)=t;
-                AA=A(pn(i),pn(i));
-                tt=AA-t'*t;
-                if(tt<=AA*tol)
-                    tt=1e300;
-                else
-                    tt=sqrt(tt);
-                end
-                %L(i,i)=sqrt(tt);
-                %LL(i,i)=sqrt(tt);
-                LL(i,1:i)=[t',tt];
-                UU(1:i,i)=[t;tt];
-            end
-            
-            % solve using lower triangular factor
-            %LL=L(1:pn2,1:pn2);
-            t=linsolve(LL,b(pn(1:pn2)),lowtri);
-            %t=LL\b(pn(1:pn2));
-            %UU=LL';
-            %z(pn(1:pn2))=linsolve(UU,t,uptri);
-            z(pn(1:pn2))=linsolve(UU,t,uptri);
-            %z(pn(1:pn2))=LL'\t;
-            % or could use this to solve without updating factors
-            %z(pn(1:pn2))=A(pn(1:pn2),pn(1:pn2))\b(pn(1:pn2));
-        end
-        pn1=pn2;
-        
-        % check terms are positive
-        if(all(z(P)>=0))
-            x=z;
-            if(accy<2)
-                w=b-A*x;
-            else
-                w=C'*(d-C*x);
-            end
-            wsc(P)=max(wsc(P),2*abs(w(P)));
-            ind=true;
-            break
-        end
-        
-        % select and remove worst negative term
-        ind1=find(z<0);
-        [alpha,ind2]=min(x(ind1)./(x(ind1)-z(ind1)+realmin));
-        ind1=ind1(ind2);
-        
-        % test if removing last added, increase wsc to avoid loop
-        if(x(ind1)==0 && ind)
-            w=C'*(d-C*z);
-            wsc(ind1)=(abs(w(ind1))+wsc(ind1))*2;
-        end
-        P(ind1)=false;
-        x=x-alpha*(x-z);
-        pn1=find(pn==ind1);
-        pn(pn1:end)=[pn(pn1+1:end),0];
-        pn1=pn1-1;
-        pn2=pn2-1;
-        if(accy<2)
-            LL=LL(1:pn1,1:pn1);
-            UU=UU(1:pn1,1:pn1);
-        end
-        ind=true;
-    end
-end
-% info result required
-if(nargout>2)
-    info.iter=iter;
-    info.wsc0=wsc0*eps;
-    info.wsc=max(wsc);
-    if(nargin>2 && isfield(opts,'Order'))
-        info.Order=pn(1:pn1);
-    end
-end
+function Beta = nonlin_optim(Y, X);
+% Use non-linear optimization to solve the equivalent of pinv(Y)*X, but with the
+% constrain that weights (betas) should be positive and in the range 0.001..0.999
+% Requirement: Optimization Toolbox
 
+num_ensembles = size(Y,2);
+
+% Objective function: Mean Squared Error of weighted predictions
+objective = @(weights) mean((X - Y * weights).^2);
+
+% Initial guess
+initial_weights = ones(num_ensembles, 1) / num_ensembles;
+
+% Linear equality constraint to make weights sum to 1
+Aeq = ones(1, num_ensembles);
+beq = 1;
+
+% Bounds to ensure weights are non-negative
+lb = zeros(num_ensembles, 1) + 0.001;
+ub = ones(num_ensembles, 1) - 0.001;
+
+% Options: Display iterations
+options = optimoptions('fmincon', 'Display', 'iter');
+
+% Optimization
+Beta = fmincon(objective, initial_weights, [], [], Aeq, beq, lb, ub, [], options);
 
