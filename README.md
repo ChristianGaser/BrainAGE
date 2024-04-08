@@ -2,21 +2,17 @@
 
 ![](BrainAgeScheme.png)
 
-The current BrainAGE approach using Gaussian Process Regression (GPR) is described in the paper [BrainAGE: Revisited and reframed machine learning workflow](https://doi.org/10.1002/hbm.26632).
+The current BrainAGE approach leverages Gaussian Process Regression (GPR) as outlined in the publication [BrainAGE: Revisited and reframed machine learning workflow](https://doi.org/10.1002/hbm.26632). This innovative method, first introduced by our team in [2010](https://doi.org/10.1016/j.neuroimage.2010.01.005), utilizes machine learning techniques to estimate brain age.
 
-We were the first to introduce this idea using machine learning approaches to estimate BrainAGE in [2010](https://doi.org/10.1016/j.neuroimage.2010.01.005).
+### Essential Steps for Utilizing BrainAGE:
 
-### Necessary steps to use BrainAGE
-
-Although it is of course possible to use any grey and white matter segmentation, it is recommended to use CAT12 for pre-processing, as some CAT12 functions are necessary for BrainAGE and many of the tools are adapted for use with CAT12.
+While it's feasible to employ any segmentation of grey and white matter, CAT12 is recommended for pre-processing due to its compatibility and the necessity of certain CAT12 functionalities for BrainAGE. Many tools within BrainAGE are specifically tailored for use with CAT12.
 
 ## 1. Preprocessing your MRI data
 
-Download [CAT12](https://neuro-jena.github.io/cat) and get more detailed information [here](https://github.com/ChristianGaser/cat12) and use the [CAT12 manual](http://141.35.69.218/cat12/CAT12-Manual.pdf) and the following chapters to start with CAT12:
-[Getting Started](https://neuro-jena.github.io/cat12-help/#get_started)
-[Quick Start Guide](https://neuro-jena.github.io/cat12-html/cat_starting.html)
+Download the [CAT12](https://neuro-jena.github.io/cat) and use both the [CAT12 Manual](https://neuro-jena.github.io/cat12-html) and the introductory chapters, including the [Getting Started](https://neuro-jena.github.io/cat12-help/#get_started) and [Quick Start Guide](https://neuro-jena.github.io/cat12-html/cat_starting.html) to start using CAT12.
+For BrainAGE analysis, we use the affinely registered segmentations of grey and white matter. It is possible to follow the default segmentation settings in CAT12 and modify certain options to speed up processing by omitting non-linear registration and surface extraction. This step is optional unless analysis of voxel- and surface-based morphometry data is also desired:
 
-For BrainAGE, we use the affine registered segmentations for grey and white matter. Therefore, you can use the CAT12 defaults for segmentation and change the following options to speed up processing, as we can skip non-linear registration and surface extraction (unless you also want to analyse the voxel- and surface-based morphometry data):
 - enable 'Grey matter -> DARTEL export -> Affine'
 - enable 'White matter -> DARTEL export -> Affine'
 
@@ -44,14 +40,14 @@ Finally, carefully check the quality of the pre-processed data using the sample-
 
 ## 2. Organize Pre-processed Data
 
-The abbreviations 'rp1' and 'rp2' are used for grey and white matter segmentations that have been affinely registered. In order to prepare the data for the next step, the rp1 and rp2 files should be organised in separate folders that also indicate the CAT12 version used. Copy (or move) all rp1- and rp2 files to the respective folder:
+Use the abbreviations 'rp1' and 'rp2' to denote affinity-registered grey matter and white matter segmentations, respectively. Before proceeding to the next stage, separate the 'rp1' and 'rp2' files into separate folders, clearly labelled with the CAT12 version used. Move all 'rp1' and 'rp2' files into their respective folders:
 
         YourDataFolder/rp1_CAT12.9
         YourDataFolder/rp2_CAT12.9
 
 ## 3. Resample and Smooth Pre-processed Data
 
-The function `BA_data2mat` can be used to prepare pre-processed data for machine learning analysis by saving spatially registered volumes as Matlab data matrices. The function applies a mask to the volume data to remove non-brain areas, ensuring that only relevant brain information is included in the output and resamples and smoothes the data with different sizes (i.e. 4/8mm resampling, 4/8mm smoothing).
+The BA_data2mat function is designed to prepare pre-processed data for machine learning analysis by converting spatially registered volumes into Matlab .mat files. It masks out non-brain areas by applying a mask to the volume data to ensure that only relevant brain information is included, and performs resampling and smoothing of the data at different scales (e.g. 4/8mm for both processes).
 
         D.age   = load(YourAgeTextFile);  % Load your age information
         D.male  = load(YourMaleTextFile); % Load information about male/female (1/0)
@@ -62,7 +58,7 @@ The function `BA_data2mat` can be used to prepare pre-processed data for machine
         
         BA_data2mat(D); % call BA_data2mat to save mat-files of resampled and smoothed data
 
-The function will save segmented, smoothed, and resampled volumes as .mat files in the specified or default directories. For example, using the above parameters, the output files will be:
+This function outputs segmented, smoothed and resampled volumes as .mat files in specified or default directories. For example, using the above parameters, the output files will be:
 
         s8_8mm_rp1_YourDataName_CAT12.9.mat
         s8_8mm_rp2_YourDataName_CAT12.9.mat
@@ -73,7 +69,7 @@ The function will save segmented, smoothed, and resampled volumes as .mat files 
         s4_4mm_rp1_YourDataName_CAT12.9.mat
         s4_4mm_rp2_YourDataName_CAT12.9.mat
 
-If you have defined multiple folders for `D.data` (e.g. D.data = {YourDataFolder1,YourDataFolder2}), the data from the specified folders will be concatenated (first 'YourDataFolder1', then 'YourDataFolder2') and saved in a single .mat file format for each segmentation. This can be useful if your data consists of different groups (i.e. controls and patients). Please take care that the order of all pre-processed files always corresponds to the age and male information.
+If you have defined multiple folders for `D.data` (e.g. D.data = {YourDataFolder1,YourDataFolder2}), the data from the specified folders will be concatenated (first 'YourDataFolder1', then 'YourDataFolder2') and saved in a single .mat file format for each segmentation. When using data from multiple folders (e.g. combining data from control and patient groups), ensure that all pre-processed files are arranged in an orderly manner according to subject age and gender. 
 
 ## 4. BrainAGE Estimation
 
