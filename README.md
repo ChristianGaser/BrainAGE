@@ -14,18 +14,18 @@ While it's feasible to employ any segmentation of grey and white matter, CAT12 i
 Download the [CAT12](https://neuro-jena.github.io/cat) and use both the [CAT12 Manual](https://neuro-jena.github.io/cat12-html) and the introductory chapters, including the [Getting Started](https://neuro-jena.github.io/cat12-help/#get_started) and [Quick Start Guide](https://neuro-jena.github.io/cat12-html/cat_starting.html) to start using CAT12.
 For BrainAGE analysis, we use the affinely registered segmentations of grey and white matter. It is possible to follow the default segmentation settings in CAT12 and modify certain options to speed up processing by omitting non-linear registration and surface extraction. This step is optional unless analysis of voxel- and surface-based morphometry data is also desired:
 
-- enable 'Grey matter -> DARTEL export -> Affine'
-- enable 'White matter -> DARTEL export -> Affine'
+- enable `Grey matter -> DARTEL export -> Affine`
+- enable `White matter -> DARTEL export -> Affine`
 
 If you don't want to analyze voxel-based morphometry data:
-- disable 'Process Volume ROIs'
-- disable 'Grey matter -> Modulated normalized'
-- disable 'White matter -> Modulated normalized'
-- disable 'Bias, noise and global intensity corrected T1 image -> Normalized'
-- disable 'Deformation Fields -> Image->Template (forward)'
+- disable `Process Volume ROIs`
+- disable `Grey matter -> Modulated normalized`
+- disable `White matter -> Modulated normalized`
+- disable `Bias, noise and global intensity corrected T1 image -> Normalized`
+- disable `Deformation Fields -> Image->Template (forward)`
 
 If you don't want to analyze surface-based morphometry data:
-- disable 'Surface and thickness estimation'
+- disable `Surface and thickness estimation`
 
 You can also use the CAT12 shell scripts:
 
