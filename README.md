@@ -89,7 +89,8 @@ D.name = 'Jena_s87_c108';
 
 % Cell array of strings; paths to data folders to be concatenated
 % Here we have organized the data in 4 different subfolders for the groups.
-D.data = {'Jena_s87_c108/c/','Jena_s87_c108/s1_neg_items50/','Jena_s87_c108/s2_desorg_items50/','Jena_s87_c108/s3_halluz_items50/'};
+D.data = {'Jena_s87_c108/c/','Jena_s87_c108/s1_neg_items50/',...
+    'Jena_s87_c108/s2_desorg_items50/','Jena_s87_c108/s3_halluz_items50/'};
 
 % Call BA_data2mat to save mat-files of resampled and smoothed data
 BA_data2mat(D);
@@ -184,16 +185,19 @@ D.ensemble = 5;
 Global BrainAGE Estimation in Schizophrenia
 
 ## 5. Regional BrainAGE Estimation
-![](figures/Parcellation.png)
-Lobe Parcellation for Regional BrainAGE [Source](https://doi.org/10.1007/s00429-009-0203-y).
-
 We have recently also introduce our local BrainAGE approach that uses this [parcellation](https://doi.org/10.1007/s00429-009-0203-y) into lobes to additionally estimate local BrainAGE values.
 
+![](figures/Parcellation.png "Lobale Parcellation")
+
+Lobe Parcellation for Regional BrainAGE [Source](https://doi.org/10.1007/s00429-009-0203-y).
+
+
+In order to estimate regional BrainAGE, simply add the following lines to the script above:
 ```
 % Use parcellation
 D.parcellation = 1;
 
-% Show spider (radar) plot either with mean values
+% Show spider (radar) plot with mean values
 D.spiderplot.func = 'mean';
 
 % Range for spiderplot (default automatically find range)
