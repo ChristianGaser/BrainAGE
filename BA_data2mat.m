@@ -2,11 +2,12 @@ function BA_data2mat(D, fwhm, res, seg)
 % BA_DATA2MAT Save spatially registered brain volumes as Matlab matrices.
 %
 % This function prepares brain imaging data for machine learning analysis by
-% saving spatially registered volumes as Matlab data matrices. It specifically
-% caters to applications such as Gaussian Process Regression where the spatial
+% saving spatially registered volumes as Matlab data matrices. It is specifically
+% designed for applications such as Gaussian Process Regression where the spatial
 % structure of the data is not considered. The function applies a mask to the
 % volume data to remove non-brain areas, ensuring that only relevant brain
-% information is included in the output.
+% information is included in the output and resamples and smoothes the data with
+% different sizes (i.e. 4/8mm resampling, 4/8mm smoothing).
 %
 % Usage:
 %   BA_data2mat(D)
