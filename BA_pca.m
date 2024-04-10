@@ -34,11 +34,11 @@ function [mappedX, mapping] = BA_pca(X, no_dims, method)
 % $Id$
 
 if ~exist('no_dims', 'var')
-		no_dims = 2;
+    no_dims = 2;
 end
 
 if ~exist('method', 'var')
-		method = 'eig';
+    method = 'eig';
 end
 
 % Make sure data is zero mean
@@ -46,17 +46,17 @@ mapping.mean = mean(X, 1);
 X = X - repmat(mapping.mean, [size(X, 1) 1]);
 
 switch method
-	case 'svd'
+  case 'svd'
 
     X(isnan(X)) = 0;
     X(isinf(X)) = 0;
 
     [U,sigma,M] = svd(X,'econ');
 
-		if no_dims == 1     % sigma might have only 1 row
-				sigma = sigma(1);
-		else
-				sigma = diag(sigma);
+    if no_dims == 1     % sigma might have only 1 row
+        sigma = sigma(1);
+    else
+        sigma = diag(sigma);
     end
     
     % use largest possible # of dimensions
@@ -71,7 +71,7 @@ switch method
 
     mappedX = X * M;
         
-	case 'eig'
+  case 'eig'
     % Compute covariance matrix
     if size(X, 2) < size(X, 1)
         C = cov(X);
@@ -93,13 +93,13 @@ switch method
     M = M(:,ind(1:no_dims));
     lambda = lambda(1:no_dims);
     
-		% Force small negative eigenvalues to zero because of rounding error
-		lambda((lambda<0)&(abs(lambda)<(eps(lambda(1))*length(lambda)))) = 0;
-	
-		% Check if eigvalues are all positive
-		if any(lambda<0)
-			error(message('PCA:CovNotPositiveSemiDefinite'));
-		end
+    % Force small negative eigenvalues to zero because of rounding error
+    lambda((lambda<0)&(abs(lambda)<(eps(lambda(1))*length(lambda)))) = 0;
+  
+    % Check if eigvalues are all positive
+    if any(lambda<0)
+      error(message('PCA:CovNotPositiveSemiDefinite'));
+    end
 
     % Apply mapping on the data
     if ~(size(X, 2) < size(X, 1))
