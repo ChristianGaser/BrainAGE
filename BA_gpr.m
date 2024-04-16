@@ -193,7 +193,8 @@ end
 % load training sample(s)
 for i = 1:n_training_samples
   if load_training_sample
-    name = fullfile(D.dir, [D.smooth D.seg{1} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat']);
+    name0 = [D.smooth D.seg{1} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat'];
+    name = fullfile(D.dir, name0);
     
     % check whether release number is already included in name
     if ~exist(name,'file')
@@ -203,7 +204,12 @@ for i = 1:n_training_samples
     end
     
     if D.verbose > 1, fprintf('BA_gpr_core: load %s\n',name); end
-    load(name);
+
+    % search first if the file exists in current folder
+    if ~exist(name) && exist(name0)
+      load(name0)
+    else load(name); end
+    
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
     
