@@ -1619,7 +1619,7 @@ case {3, -3}   % use GLM estimation to maximize group differences or correlation
     
   if group_diff
     Yind = Y;
-    Yind = X;
+    Xind = X;
   else
     % we have to excluded NaNs for Beta estimation
     ind_finite = all(isfinite(X),2);
@@ -1759,7 +1759,7 @@ case {6, -6}   % use GLM estimation for mean tissue to maximize group difference
   
   if group_diff
     Yind = Y;
-    Yind = X;
+    Xind = X;
   else
     % we have to excluded NaNs for Beta estimation
     ind_finite = all(isfinite(X),2);
