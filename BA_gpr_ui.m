@@ -106,7 +106,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.style           - plot-style: 1: old style with vertical violin-plot; 2: new style with horizontal density plot
 % D.groupcolor      - matrix with (group)-bar-color(s), use jet(numel(data)) or other color functions (nejm by default)
 % D.normalize_BA    - normalize BA values w.r.t. MAE to make BA less dependent from training sample (i.e. size) and scale 
-%                     it to MAE of 5 (default)
+%                     it to MAE of 5
 % D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
 % D.parcellation    - use parcellation into lobes to additionally estimate local BrainAGE values:
 %                     https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058
@@ -153,7 +153,7 @@ end
 
 % use normalized BA as default and scale it to MAE of 5
 if ~isfield(D,'normalize_BA')
-  D.normalize_BA = 5;
+  D.normalize_BA = 0;
 else
   if D.normalize_BA == 1
     D.normalize_BA = 5;
