@@ -1861,14 +1861,19 @@ for i = 1:max(site_adjust)
       end
             
       % polynomial trend
-      if D.trend_degree > 0
-        G = [ones(length(age(ind_site)),1) cat_stat_polynomial(age(ind_site),D.trend_degree)];
-        G_indexed = [ones(length(age(ind_site_adjust)),1) cat_stat_polynomial(age(ind_site_adjust),D.trend_degree)];
-      % use just offset
+      if D.trend_method == 3
+        G = ones(length(PredictedAge(ind_site)),1);
+        G_indexed = ones(length(PredictedAge(ind_site_adjust)),1);
       else
         G = ones(length(age(ind_site)),1);
         G_indexed = ones(length(age(ind_site_adjust)),1);
       end
+      % polynomial expansion
+      if D.trend_degree > 0
+        G = [G cat_stat_polynomial(age(ind_site),D.trend_degree)];
+        G_indexed = [G_indexed cat_stat_polynomial(age(ind_site_adjust),D.trend_degree)];
+      end
+
       if verbose, fprintf('Remove trend degree %d using %d subjects of site %d.\n',D.trend_degree,length(ind_site_adjust),i); end
         
       % estimate beta only for indexed data (e.g. control subjects)
@@ -1907,8 +1912,8 @@ PredictedAge = PredictedAge - avg_BrainAGE;
 
 MAE = mean(abs(BrainAGE));
 
-if MAE0/MAE > 4
-  if verbose, fprintf('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n'); end
+if MAE0/MAE > 3
+  warning('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n');
 end
 
 %-------------------------------------------------------------------------------
