@@ -7,7 +7,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     {'rp1'} use GM
 %                     {'rp2'} use WM
 %                     {'rp1,'rp2'} use GM or WM
-%                     {'rp1+rp2'} use both GM+WM
+%                     {'rp1+rp2'} use both GM+WM (by concatinating both)
 % D.res_array       - spatial resolution of data as char or cell (can be a cell array to try different values: {'4','8'})
 % D.smooth_array    - smoothing size as char or cell (can be a cell array to try different values: {'s4','s8'})
 % D.train_array     - cell array name(s) of training samples
@@ -30,7 +30,7 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %     Children + adults:
 %         fCONN772  - fcon-1000 (8-85 years)
 %
-% D.relnumber       - CAT12 release (e.g. '_r1840')
+% D.relnumber       - CAT12 release (e.g. '_CAT12.9')
 % D.age_range       - age range of training data
 %                     [0 Inf] use all data (default)
 %                     [50 80] use age range of 50..80
@@ -41,18 +41,13 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     correction should be estimated and applied for each site seperately. A vector with coding of the scanners is required.
 %                     If this parameter is empty this ensures that no site-specific adjustment is made even for multiple
 %                     training data that are combined with a "+". 
-% D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
-%                     harmonize data using ComCAT. A vector with coding of the scanners is required or if ComCat will be only used to correct between 
-%                     the different training samples and the test sample a single value can be also used and the vector defining the samples will 
-%                     be automatically build (EXPERIMENTAL!).
 % D.ind_groups      - define indices of groups, if D.ind_adjust is not given, then the first group of this index will
 %                     be used for adjusting data according to trend defined with D.trend_degree
-% D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
-% D.trend_degree    - estimate trend with defined order using healthy controls and apply it to all data (set to -1 for skipping trend correction)
 % D.trend_method    - use different methods for estimating trend:
 %                     0 skip trend correction (set trend_degree to -1)
-%                     1 use BrainAGE for trend correction (default)
+%                     1 use BrainAGE for trend correction (as used in Smith et al. 2019, default)
 %                     2 use predicted age for trend correction (as used in Cole et al. 2018)
+% D.trend_degree    - estimate trend with defined order using healthy controls and apply it to all data (set to -1 for skipping trend correction)
 % D.trend_ensemble  - apply trend correction for each ensemble separately before bagging/stacking
 %                     0 skip trend correction for each ensemble (default)
 %                     1 apply trend correction for each ensemble
@@ -90,8 +85,12 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.dir             - directory for databases and code
 % D.verbose         - verbose level
 %                     0 - suppress long outputs
-%                     0 - print meaningful outputs (default)
-%                     0 - print long outputs
+%                     1 - print meaningful outputs (default)
+%                     2 - print long outputs
+% D.parcellation    - use parcellation into lobes to additionally estimate local BrainAGE values:
+%                     https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058
+%                     0 - estimate global BrainAGE (default)
+%                     1 - estimate local BrainAGE for different lobes for both hemispheres
 % D.threshold_std   - all data with a standard deviation > D.threshold_std of mean covariance are excluded (after covarying out effects of age)
 %                     meaningful values are 1,2 or Inf
 % D.eqdist          - options for age and sex equalization between test and train
@@ -103,15 +102,15 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.corr            - additionally define parameter that can be correlated to BrainAGE if only one group is given
 % D.define_cov      - optionally define continous parameter that should be used instead of age for more general use 
 %                     of GPR not only limited to BrainAGE
-% D.style           - plot-style: 1: old style with vertical violin-plot; 2: new style with horizontal density plot
+% D.style           - plot-style: 1: old style with vertical violin-plot; 2: new style with horizontal density plot (default)
 % D.groupcolor      - matrix with (group)-bar-color(s), use jet(numel(data)) or other color functions (nejm by default)
 % D.normalize_BA    - normalize BA values w.r.t. MAE to make BA less dependent from training sample (i.e. size) and scale 
 %                     it to MAE of 5
+% D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
+%                     harmonize data using ComCAT. A vector with coding of the scanners is required or if ComCat will be only used to correct between 
+%                     the different training samples and the test sample a single value can be also used and the vector defining the samples will 
+%                     be automatically build (EXPERIMENTAL!).
 % D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
-% D.parcellation    - use parcellation into lobes to additionally estimate local BrainAGE values:
-%                     https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058
-%                     0 - estimate global BrainAGE
-%                     1 - estimate local BrainAGE for different lobes for both hemispheres
 % D.spiderplot.func - show spider (radar) plot either with mean or median values (only valid if D.parcellation is used):
 %                     'median' - use median values 
 %                     'mean'   - use mean values (default)
@@ -574,11 +573,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       % prepare BA_gpr_ui parameters
       D.ind_groups  = {ind_test};
       D.ind_adjust  = ind_test;
-      if isfield(D,'fraction')
-        D.ind_train   = ind_train(1:D.fraction:end);
-      else
-        D.ind_train   = ind_train;
-      end
+      D.ind_train   = ind_train;
 
       % call nested loop
       [BA_fold_all, ~, ~, D] = BA_gpr_ui(D);
@@ -1840,16 +1835,16 @@ for i = 1:max(site_adjust)
   
     % test whether sample size is too small
     if length(ind_site_adjust) < 15
-      if verbose, fprintf('Sample #%d for site-specific trend-correction is too small (n=%d). Use only offset-correction by Mean instead.\n',...
-          i,length(ind_site_adjust)); end
+      warning('Sample #%d for site-specific trend-correction is too small (n=%d). Use only offset-correction by Mean instead.\n',...
+          i,length(ind_site_adjust));
       offset = median(BrainAGE(ind_site_adjust,:));
       BrainAGE(ind_site,:) = BrainAGE(ind_site,:) - offset;
       PredictedAge(ind_site,:) = PredictedAge(ind_site,:) - offset;
       
     % test whether age range is too small
-    elseif (max(age(ind_site_adjust)) - min(age(ind_site_adjust))) < 1
-      if verbose, fprintf('Age range for site-specific trend-correction is too small (%g). Use only offset-correction by Mean instead.\n',...
-          (max(age(ind_site_adjust)) - min(age(ind_site_adjust)))); end
+    elseif (max(age(ind_site_adjust)) - min(age(ind_site_adjust))) < 5
+      warning('Age range for site-specific trend-correction is too small (%g). Use only offset-correction by Mean instead.\n',...
+          (max(age(ind_site_adjust)) - min(age(ind_site_adjust))));
       offset = median(BrainAGE(ind_site_adjust,:));
       BrainAGE(ind_site,:) = BrainAGE(ind_site,:) - offset;
       PredictedAge(ind_site,:) = PredictedAge(ind_site,:) - offset;
@@ -1857,14 +1852,14 @@ for i = 1:max(site_adjust)
     % everything else
     else
 
-      % use BrainAGE for obtaining trend
-      if D.trend_method == 1
-        Y = BrainAGE;
-      else
-        % use predicted age for obtaining trend
+      % use predicted age for obtaining trend
+      if D.trend_method == 2
         Y = PredictedAge;
+      else
+        % use BrainAGE for obtaining trend
+        Y = BrainAGE;
       end
-      
+            
       % polynomial trend
       if D.trend_degree > 0
         G = [ones(length(age(ind_site)),1) cat_stat_polynomial(age(ind_site),D.trend_degree)];
@@ -1885,16 +1880,17 @@ for i = 1:max(site_adjust)
 
       BrainAGE0 = BrainAGE;
       
-      % use BrainAGE for obtaining trend
-      if D.trend_method == 1
-        PredictedAge(ind_site,:)  = PredictedAge(ind_site,:)  - GBeta;
-      else
-        % use predicted age for obtaining trend
+      % use predicted age for obtaining trend
+      if D.trend_method == 2
         PredictedAge(ind_site,:)  = (PredictedAge(ind_site,:) - Beta(1));
         if D.trend_degree == 1
           PredictedAge(ind_site,:) = PredictedAge(ind_site,:)/Beta(2);
         end
+      else
+        % use BrainAGE for obtaining trend
+        PredictedAge(ind_site,:)  = PredictedAge(ind_site,:)  - GBeta;
       end
+
       BrainAGE = PredictedAge - age;
       Adjustment{i} = BrainAGE0(ind_site,:) - BrainAGE(ind_site,:);
     end
