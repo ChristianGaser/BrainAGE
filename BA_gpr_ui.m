@@ -855,6 +855,7 @@ for i = 1:numel(D.res_array)
           age = D.define_cov;
           male = ones(size(age));
         end
+                
         D.age_test = age;
         
         if exist('male','var')
@@ -1285,6 +1286,34 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     BA_unsorted_weighted = D.normalize_BA * BA_unsorted_weighted ./ (mean(abs(BA_unsorted_weighted1(D.ind_adjust,:))));
   end
 
+  % check correlation coefficient of unsorrected data that should be not tto low
+  cc = corrcoef([BA_unsorted_weighted(D.ind_adjust)+age(D.ind_adjust) age(D.ind_adjust)]);
+  if cc(1,2) < 0.4
+    fprintf('\n********************************************************************\n'); 
+    warning('Correlation between predicted and chronological age (without age correction) is too low to be meaningful: cc = %1.3f!',cc(1,2));
+    fprintf('********************************************************************\n\n'); 
+  end  
+  
+  figure(22)
+  clf
+  hold on 
+  [p,S] = polyfit(D.age_test(D.ind_adjust),D.age_test(D.ind_adjust)+BA_unsorted_weighted(D.ind_adjust),1);
+  yfit = polyval(p,[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))]);
+
+  for i = 1:n_groups
+    plot(D.age_test(D.ind_groups{i}),D.age_test(D.ind_groups{i})+BA_unsorted_weighted(D.ind_groups{i}),'*','color',groupcolor(i,:))
+  end
+  line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],...
+    'Color',[0 0 0],'lineWidth',2);
+  line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],yfit,...
+    'Color',[1 0 0],'lineWidth',2);    hold off
+  title('Data')
+  xlabel('Chronological Age [years]')
+  ylabel('Predicted Age [years]')
+  legend(char(D.name_groups, 'Reference', 'Linear Age Fit'),'Location','NorthWest')
+  set(gca,'FontSize',20);
+
+
   % apply final trend correction to weighted model if not k-fold validation
   if D.trend_degree >= 0 && ~isfield(D,'k_fold')
     BA_unsorted_weighted = apply_trend_correction(BA_unsorted_weighted,age,D);
@@ -1294,7 +1323,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   BA_weighted = BA_unsorted_weighted(ind_groups,:);
   
   if D.verbose >1
-    figure(22)
+    figure(23)
     plot(D.age_test(D.ind_adjust),D.age_test(D.ind_adjust)+BA_unsorted_weighted(D.ind_adjust),'.')
     hold on 
     line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],...
@@ -1303,8 +1332,9 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     title('Test Data')
     xlabel('Chronological Age [years]')
     ylabel('Predicted Age [years]')
+    set(gca,'FontSize',20);
 
-    figure(23)
+    figure(24)
     clf
     hold on 
     for i = 1:n_groups
@@ -1861,13 +1891,9 @@ for i = 1:max(site_adjust)
       end
             
       % polynomial trend
-      if D.trend_method == 3
-        G = ones(length(PredictedAge(ind_site)),1);
-        G_indexed = ones(length(PredictedAge(ind_site_adjust)),1);
-      else
-        G = ones(length(age(ind_site)),1);
-        G_indexed = ones(length(age(ind_site_adjust)),1);
-      end
+      G = ones(length(age(ind_site)),1);
+      G_indexed = ones(length(age(ind_site_adjust)),1);
+
       % polynomial expansion
       if D.trend_degree > 0
         G = [G cat_stat_polynomial(age(ind_site),D.trend_degree)];
