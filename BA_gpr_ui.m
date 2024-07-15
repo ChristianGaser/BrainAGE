@@ -32,9 +32,16 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %
 % D.relnumber       - CAT12 release (e.g. '_CAT12.9')
 % D.age_range       - age range of training data
+%                     This is a very important and useful parameter that should be adapted to your data.
+%                     If your sample consists mainly of elderly subjects or patients with dementia, 
+%                     it is recommended to use a higher minimum age range for the training data to 
+%                     account for aging effects in subjects older than 65 years, where the largest 
+%                     aging effects occur (e.g. [50 Inf]). 
+%                     In the case of much younger subjects (20..35 years), an age range of 18..50 
+%                     (or even 60) may be more appropriate to account for the different age trajectories 
+%                     at younger ages.
 %                     [0 Inf] use all data (default)
 %                     [50 80] use age range of 50..80
-%                     if not defined use min/max of age of test data
 % D.ind_adjust      - define indices for adjusting data according to trend defined with D.trend_degree
 %                     usually this is the control group that is used in order to adjust the data
 % D.site_adjust     - If data are acquired at different sites (e.g. using different scanners or sequences) the trend 
@@ -862,10 +869,6 @@ for i = 1:numel(D.res_array)
           D.male_test = male;
         end
     
-        if ~isfield(D,'age_range')
-          D.age_range = [min(D.age_test) max(D.age_test)];
-        end
-        
         % use additional segmentation if defined
         for l = 2:n_seg
           % find potential "+" indicating to combine data
@@ -929,12 +932,8 @@ for i = 1:numel(D.res_array)
         end
                                 
 
-        if ~isfield(D,'age_range')
-          D.age_range = [min(D.age_test(ind_test)) max(D.age_test(ind_test))];
-        else
-          if numel(D.age_range) ~=2
-            error('Age range has to be defined by two values (min/max)');
-          end
+        if numel(D.age_range) ~=2
+          error('Age range has to be defined by two values (min/max)');
         end
         
         % add spatial resolution to atlas name

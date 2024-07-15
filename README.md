@@ -146,15 +146,8 @@ D.trend_method = 1;
 % (18..97 years)
 D.train_array = {'OASIS3_549+IXI547+CamCan651+SALD494+NKIe516'};
 
-% Age range of the training sample. This is a very important and useful parameter 
-% that should be adjusted to suit your data. The age in our example data for the 
-% controls and patients is 18..65 years and we choose a wider age range for the training 
-% for the training data to take into account the aging effects in subjects older than 
-% than 65 years, where the largest aging effects occur. In the case of much
-% younger subjects (20..35 years), then an age range of 18..50 (or even 60)
-% may be more appropriate to take into account the different age trajectories 
-% at younger ages.
-D.age_range = [18 80];
+% Age range of the training sample. The default is to use the complete age range.
+D.age_range = [0 Inf];
 
 % Be verbose
 D.verbose = 1;
