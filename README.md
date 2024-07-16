@@ -45,7 +45,7 @@ Finally, carefully check the quality of the pre-processed data using the sample-
 
 ## 2. Organize Pre-processed Data
 
-Use the abbreviations 'rp1' and 'rp2' to denote affinity-registered grey matter and white matter segmentations, respectively. Before proceeding to the next stage, separate the 'rp1' and 'rp2' files into separate folders, clearly labelled with the CAT12 version used. Move all 'rp1' and 'rp2' files into their respective folders. We use an example that was described in our [recent work](https://doi.org/10.1002/hbm.26632), where 3 subgroups of patients with Schizophrenia were compared to controls subjects:
+Use the abbreviations 'rp1' and 'rp2' to denote affinely-registered grey matter and white matter segmentations, respectively. Before proceeding to the next stage, separate the 'rp1' and 'rp2' files into separate folders, clearly labelled with the CAT12 version used. Move all 'rp1' and 'rp2' files into their respective folders. We use an example that was described in our [recent work](https://doi.org/10.1002/hbm.26632), where 3 subgroups of patients with Schizophrenia were compared to control subjects:
 
 ```
 Jena_s87_c108/c/rp1_CAT12.9
@@ -178,7 +178,7 @@ D.ensemble = 5;
 Global BrainAGE Estimation in Schizophrenia
 
 ## 5. Regional BrainAGE Estimation
-We have recently also introduce our local BrainAGE approach that uses this [parcellation](https://doi.org/10.1007/s00429-009-0203-y) into lobes to additionally estimate local BrainAGE values.
+We have recently also introduced our local BrainAGE approach that uses this [parcellation](https://doi.org/10.1007/s00429-009-0203-y) into lobes to additionally estimate local BrainAGE values.
 
 ![](figures/Parcellation.png "Lobale Parcellation")
 

@@ -1937,7 +1937,7 @@ PredictedAge = PredictedAge - avg_BrainAGE;
 
 MAE = mean(abs(BrainAGE));
 
-if MAE0/MAE > 3
+if MAE0/MAE > 4
   warning('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n');
 end
 
