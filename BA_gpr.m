@@ -386,8 +386,10 @@ end
 
 % give warning if age range differs by more than two years
 if (min(age_train)-min(D.age_test) > 2) || (max(D.age_test)>max(age_train) > 2)
-  fprintf('Warning: Defined age range of training sample (%3.1f..%3.1f years) differs from real age range of sample %g..%g\n',...
+  fprintf('\n********************************************************************\n'); 
+  warning('Warning: Defined age range of training sample (%3.1f..%3.1f years) differs from real age range of sample %g..%g\n',...
       min(age_train),max(age_train),min(D.age_test),max(D.age_test));
+  fprintf('********************************************************************\n'); 
 end
 
 % save output

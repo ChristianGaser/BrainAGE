@@ -1288,6 +1288,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   % check correlation coefficient of unsorrected data that should be not tto low
   cc = corrcoef([BA_unsorted_weighted(D.ind_adjust)+age(D.ind_adjust) age(D.ind_adjust)]);
   if cc(1,2) < 0.4
+    spm('alert*','Correlation between predicted and chronological age (without age correction) is too low to be meaningful.');
     fprintf('\n********************************************************************\n'); 
     warning('Correlation between predicted and chronological age (without age correction) is too low to be meaningful: cc = %1.3f!',cc(1,2));
     fprintf('********************************************************************\n\n'); 
@@ -1496,6 +1497,13 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
 
     set(gca,'FontSize',20);
   end
+end
+
+if (D.age_range(1)-min(D.age_test) > 2) || (D.age_range(2)>max(age_train) > 2)
+  fprintf('\n********************************************************************\n'); 
+  warning('Warning: Defined age range of training sample (%3.1f..%3.1f years) differs from real age range of sample %g..%g\n',...
+      D.age_range(1),D.age_range(2),min(D.age_test),max(D.age_test));
+  fprintf('********************************************************************\n'); 
 end
 
 
