@@ -1499,7 +1499,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   end
 end
 
-if (D.age_range(1)-min(D.age_test) > 2) || (D.age_range(2)>max(age_train) > 2)
+if (D.age_range(1)-min(D.age_test)) > 2 || (max(D.age_test)-D.age_range(2)) > 2
   fprintf('\n********************************************************************\n'); 
   warning('Warning: Defined age range of training sample (%3.1f..%3.1f years) differs from real age range of sample %g..%g\n',...
       D.age_range(1),D.age_range(2),min(D.age_test),max(D.age_test));
