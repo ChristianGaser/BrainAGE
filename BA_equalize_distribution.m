@@ -60,7 +60,15 @@ else
   trans_src = false;
 end
 
-if n_ref > n_src, error('Size of reference sample should be smaller than your source sample'); end
+% select smaller subsample as reference if reference sample is larger than
+% source sample
+sample_ref0 = sample_ref;
+if n_ref > n_src || false
+  ratio = ceil(n_ref/n_src);
+  [~,ind] = sort(sample_ref(:,1));
+  sample_ref = sample_ref(ind(1:ratio:end),:);
+  [n_ref,m0] = size(sample_ref);
+end
 
 if ~isfield(opts,'weight'), opts.weight = ones(m,1); end
 if ~isfield(opts,'tol'),    opts.tol = inf(m,1); end
@@ -78,7 +86,7 @@ m = numel(opts.tol);
 if m ~=  m0, error('Size mismatch. Tolerance must be defined with %d entries.',m0); end
 
 cost = zeros(n_src);
-scl = opts.weight./max([sample_ref; sample_src]);
+scl = opts.weight./max([sample_ref0; sample_src]);
 
 for j = 1:m
   ind = sample_src(:,j) < opts.range(1,j) | sample_src(:,j) > opts.range(2,j);
@@ -147,6 +155,7 @@ end
 
 sample_sel = sample_src(c,:);
 
+str = {'Age','Male'};
 % find selected sample inside tolerance
 for i = n_ref:n_src
   for j = 1:m
@@ -154,10 +163,10 @@ for i = n_ref:n_src
       c = c(1:i-1);
       sample_sel = sample_sel(1:i-1,:);
       if trans_src, sample_sel = sample_sel'; end
-      fprintf('Sample    \tSize\tMean\tSD\n');
+      fprintf('Sample    \t\t\tSize\tMean\tSD\n');
       for k = 1:m
-        fprintf('Reference \t%d\t%3.2f\t%3.2f\n',size(sample_ref,1),mean(sample_ref(:,k)),std(sample_ref(:,k)));
-        fprintf('Source    \t%d\t%3.2f\t%3.2f\t',size(sample_sel,1),mean(sample_sel(:,k)),std(sample_sel(:,k)));
+        fprintf('Reference (test data) \t%s\t%d\t%3.2f\t%3.2f\n',str{k},size(sample_ref0,1),mean(sample_ref0(:,k)),std(sample_ref0(:,k)));
+        fprintf('Source (training data)\t%s\t%d\t%3.2f\t%3.2f\t',str{k},size(sample_sel,1),mean(sample_sel(:,k)),std(sample_sel(:,k)));
         fprintf('\n');
       end
       fprintf('\n');
@@ -248,15 +257,15 @@ while (U(n+1))
                 % Reduce matrix.
                 [A,CH,RH] = hmreduce(A,CH,RH,LC,LR,SLC,SLR);
             end
-            
             % Re-start with first unexplored row.
             r = RH(n+1);
             % Get column of next free zero in row r.
             l = CH(r);
             % Advance "column of next free zero".
             CH(r) = -A(r,l);
+
             % If this zero is last in the list..
-            if (A(r,l) ==0)
+            if (A(r,l) == 0)
                 % ...remove row r from unexplored list.
                 RH(n+1) = RH(r);
                 RH(r) = 0;
@@ -284,7 +293,7 @@ while (U(n+1))
             CH(r) = -A(r,l);
             
             % If this zero is last in list..
-            if(A(r,l) ==0)
+            if(A(r,l) == 0)
                 % ...remove row r from unexplored list.
                 RH(n+1) = RH(r);
                 RH(r) = 0;
@@ -356,143 +365,103 @@ for k = 1:n
 end
 
 
-function [A,C,U] = hminiass(A)
+function [A, C, U] = hminiass(A)
 %HMINIASS Initial assignment of the Hungarian method.
 %
-%[B,C,U] = hminiass(A)
-%A - the reduced cost matrix.
-%B - the reduced cost matrix, with assigned zeros removed from lists.
-%C - a vector. C(J) = I means row I is assigned to column J,
+% [A, C, U] = hminiass(A)
+% A - the reduced cost matrix.
+% C - a vector. C(J) = I means row I is assigned to column J,
 %              i.e. there is an assigned zero in position I,J.
-%U - a vector with a linked list of unassigned rows.
+% U - a vector with a linked list of unassigned rows.
+% optimized version of: v1.0  96-06-14. Niclas Borlin, niclas@cs.umu.se.
 
-% v1.0  96-06-14. Niclas Borlin, niclas@cs.umu.se.
+[n, np1] = size(A);
 
-[n,np1] = size(A);
-
-% Initalize return vectors.
-C = zeros(1,n);
-U = zeros(1,n+1);
+% Initialize return vectors.
+C = zeros(1, n);
+U = zeros(1, n + 1);
 
 % Initialize last/next zero "pointers".
-LZ = zeros(1,n);
-NZ = zeros(1,n);
+LZ = zeros(1, n);
+NZ = zeros(1, n);
 
 for i = 1:n
     % Set j to first unassigned zero in row i.
-  lj = n+1;
-  j = -A(i,lj);
+    lj = n + 1;
+    j = -A(i, lj);
 
-    % Repeat until we have no more zeros (j ==0) or we find a zero
-  % in an unassigned column (c(j) ==0).
-    
-  while (C(j)~= 0)
-    % Advance lj and j in zero list.
-    lj = j;
-    j = -A(i,lj);
-  
-    % Stop if we hit end of list.
-    if (j ==0)
-      break;
-    end
-  end
-
-  if (j~= 0)
-    % We found a zero in an unassigned column.
-    
-    % Assign row i to column j.
-    C(j) = i;
-    
-    % Remove A(i,j) from unassigned zero list.
-    A(i,lj) = A(i,j);
-
-    % Update next/last unassigned zero pointers.
-    NZ(i) = -A(i,j);
-    LZ(i) = lj;
-
-    % Indicate A(i,j) is an assigned zero.
-    A(i,j) = 0;
-  else
-    % We found no zero in an unassigned column.
-
-    % Check all zeros in this row.
-
-    lj = n+1;
-    j = -A(i,lj);
-    
-    % Check all zeros in this row for a suitable zero in another row.
-    while (j~= 0)
-      % Check the in the row assigned to this column.
-      r = C(j);
-      
-      % Pick up last/next pointers.
-      lm = LZ(r);
-      m = NZ(r);
-      
-      % Check all unchecked zeros in free list of this row.
-      while (m~= 0)
-        % Stop if we find an unassigned column.
-        if (C(m) ==0)
-          break;
-        end
-        
-        % Advance one step in list.
-        lm = m;
-        m = -A(r,lm);
-      end
-      
-      if (m ==0)
-        % We failed on row r. Continue with next zero on row i.
+    % Find a zero in an unassigned column.
+    while (j ~= 0) && (C(j) ~= 0)
+        % Advance lj and j in zero list.
         lj = j;
-        j = -A(i,lj);
-      else
+        j = -A(i, lj);
+    end
+
+    if (j ~= 0)
         % We found a zero in an unassigned column.
-      
-        % Replace zero at (r,m) in unassigned list with zero at (r,j)
-        A(r,lm) = -j;
-        A(r,j) = A(r,m);
-      
-        % Update last/next pointers in row r.
-        NZ(r) = -A(r,m);
-        LZ(r) = j;
-      
-        % Mark A(r,m) as an assigned zero in the matrix . . .
-        A(r,m) = 0;
-      
-        % ...and in the assignment vector.
-        C(m) = r;
-      
-        % Remove A(i,j) from unassigned list.
-        A(i,lj) = A(i,j);
-      
-        % Update last/next pointers in row r.
-        NZ(i) = -A(i,j);
-        LZ(i) = lj;
-      
-        % Mark A(r,m) as an assigned zero in the matrix . . .
-        A(i,j) = 0;
-      
-        % ...and in the assignment vector.
+        
+        % Assign row i to column j.
         C(j) = i;
         
-        % Stop search.
-        break;
-      end
+        % Remove A(i, j) from unassigned zero list.
+        A(i, lj) = A(i, j);
+
+        % Update next/last unassigned zero pointers.
+        NZ(i) = -A(i, j);
+        LZ(i) = lj;
+
+        % Indicate A(i, j) is an assigned zero.
+        A(i, j) = 0;
+    else
+        % We found no zero in an unassigned column.
+        lj = n + 1;
+        j = -A(i, lj);
+        
+        while (j ~= 0)
+            r = C(j);
+            lm = LZ(r);
+            m = NZ(r);
+            
+            while (m ~= 0) && (C(m) ~= 0)
+                lm = m;
+                m = -A(r, lm);
+            end
+            
+            if (m == 0)
+                lj = j;
+                j = -A(i, lj);
+            else
+                A(r, lm) = -j;
+                A(r, j) = A(r, m);
+                
+                NZ(r) = -A(r, m);
+                LZ(r) = j;
+                
+                A(r, m) = 0;
+                C(m) = r;
+                
+                A(i, lj) = A(i, j);
+                
+                NZ(i) = -A(i, j);
+                LZ(i) = lj;
+                
+                A(i, j) = 0;
+                C(j) = i;
+                
+                break;
+            end
+        end
     end
-  end
 end
 
 % Create vector with list of unassigned rows.
-
-% Mark all rows have assignment.
-r = zeros(1,n);
-rows = C(C~= 0);
+r = zeros(1, n);
+rows = C(C ~= 0);
 r(rows) = rows;
-empty = find(r ==0);
+empty = find(r == 0);
 
 % Create vector with linked list of unassigned rows.
-U = zeros(1,n+1);
-U([n+1 empty]) = [empty 0];
+U([n + 1, empty]) = [empty, 0];
 
 
 function [A,C,U] = hmflip(A,C,LC,LR,U,l,r)
@@ -549,8 +518,9 @@ while (1)
     end
 end
 
+
 function [A,CH,RH] = hmreduce(A,CH,RH,LC,LR,SLC,SLR)
-%HMREDUCE Reduce parts of cost matrix in the Hungerian method.
+%HMREDUCE Reduce parts of cost matrix in the Hungarian method.
 %
 %[A,CH,RH] = hmreduce(A,CH,RH,LC,LR,SLC,SLR)
 %Input:
@@ -581,19 +551,22 @@ r = find(~coveredRows);
 c = find(~coveredCols);
 
 % Get minimum of uncovered elements.
-m = min(min(A(r,c)));
+m = min(A(r, c), [], 'all');
 
 % Subtract minimum from all uncovered elements.
 A(r,c) = A(r,c)-m;
+
+% Create a logical matrix for zero elements
+zeroMatrix = A == 0;
 
 % Check alluncovered rows in path order..
 for i = SLR
     % Check all uncovered columns..
     for j = c
         % If this is a (new) zero..
-        if (A(i,j) ==0)
+        if zeroMatrix(i, j)
             % If the row is not in unexplored list..
-            if (RH(i) ==0)
+            if (RH(i) == 0)
                 % ...insert it first in unexplored list.
                 RH(i) = RH(n+1);
                 RH(n+1) = i;
@@ -627,7 +600,7 @@ j = c(j);
 
 for k = 1:length(i)
     % Find zero before this in this row.
-    lj = A(i(k),:) ==-j(k);
+    lj = A(i(k),:) == -j(k);
     % Link past it.
     A(i(k),lj) = A(i(k),j(k));
     % Mark it as assigned.
