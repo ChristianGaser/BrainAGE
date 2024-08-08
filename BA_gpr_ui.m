@@ -974,6 +974,16 @@ for i = 1:numel(D.res_array)
           if ~isfinite(D.threshold_std)
             fprintf('\n');
           end
+
+          figure(25)
+          X0 = linspace(min(D.age_train), max(D.age_train), 20);
+          H0 = histogram(D.age_train, X0);
+          hold on
+          H1 = histogram(age, X0);
+          legend('Age training','Age test')
+          title('Age distribution')
+          set(gcf,'MenuBar','none');
+          hold off
         end
 
         % move on if training failed for global BrainAGE
@@ -1312,6 +1322,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   ylabel('Predicted Age [years]')
   legend(char(D.name_groups, 'Reference', 'Linear Age Fit'),'Location','NorthWest')
   set(gca,'FontSize',20);
+  set(gcf,'MenuBar','none');
 
 
   % apply final trend correction to weighted model if not k-fold validation
@@ -1348,6 +1359,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
     ylabel('Predicted Age [years]')
     legend(D.name_groups,'Location','NorthWest')
     set(gca,'FontSize',20);
+    set(gcf,'MenuBar','none');
 
   end
   
