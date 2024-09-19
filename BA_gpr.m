@@ -18,7 +18,7 @@ function [BrainAGE, PredictedAge, D] = BA_gpr(D)
 %                     [50 80] use age range of 50..80
 %                     if not defined use min/max of age of test data
 % D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
-%                     harmonize data using ComCAT. A vector with coding of the scanners is required (EXPERIMENTAL!).
+%                     harmonize data using ComCAT. A vector with coding of the scanners is required for the test data (EXPERIMENTAL!).
 % D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
 % D.RVR             - use old RVR method (Spider toolbox necessary, where the toolbox path can be defined using D.spider_dir)
 % D.PCA             - apply PCA as feature reduction (default=1)
@@ -174,20 +174,9 @@ if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
   else
     male = ones(size(age));
     male_train = ones(size(age)); 
-  end
-  
-  if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
-    D_comcat = ones(size(age_train));
-  end
+  end  
 else
-  load_training_sample = true;
-  
-  % D.comcat can be also just defined as single value that indicates
-  % that the comcat-vector that defines the different samples will be
-  % automatically build
-  if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
-    D_comcat = [];
-  end
+  load_training_sample = true;  
 end
 
 % load training sample(s)
@@ -212,11 +201,7 @@ for i = 1:n_training_samples
     
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
-    
-    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
-      D_comcat = [D_comcat; i*ones(size(age))];
-    end
-    
+        
     if ~exist('male','var') || (exist('male','var') && isempty(male))
       male = ones(size(age));
     end
@@ -255,24 +240,17 @@ if isfield(D,'mask')
   Y_test = Y_test(:,D.mask);
 end
 
-if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
-  D.comcat = D_comcat;
-end
-
 if length(D.seg) > 1 && load_training_sample
   Y_train = [Y_train Y_train2]; clear Y_train2
 end
 
 % apply comcat harmonization while preserving age effects
-if  isfield(D,'comcat') && load_training_sample
-  if length(D.comcat) ~= length(age_train)
-    error('Size of site definition in D.comcat (n=%d) differs from sample size (n=%d)\n',length(D.comcat),length(age_train));
+if  isfield(D,'comcat')
+  if length(D.comcat) ~= length(D.age_test)
+    error('Size of site definition in D.comcat (n=%d) differs from test sample size (n=%d)\n',length(D.comcat),length(D.age_test));
   end
-  fprintf('Apply ComCat for %d sites\n',numel(unique([D.comcat; (max(D.comcat)+1)*ones(numel(D.age_test),1)])));
-  tmp = cat_stat_comcat([Y_train; Y_test], [D.comcat; (max(D.comcat)+1)*ones(numel(D.age_test),1)],[],[age_train; D.age_test], 0, 1, 0, 0);
-  Y_train  = tmp(1:numel(age_train),:);
-  Y_test = tmp(numel(age_train)+1:end,:);
-  clear tmp
+  fprintf('Apply ComCat for %d sites\n',numel(unique(D.comcat)));
+  Y_test = cat_stat_comcat(Y_test, D.comcat,[],D.age_test, 0, 1, 0);
 end
 
 % use only indicated subjects (e.g. for gender-wise training or k-fold cross-validation)

@@ -62,7 +62,6 @@ end
 
 % select smaller subsample as reference if reference sample is larger than
 % source sample
-sample_src0 = sample_src;
 sample_ref0 = sample_ref;
 if n_ref > n_src || false
   ratio = ceil(n_ref/n_src);
