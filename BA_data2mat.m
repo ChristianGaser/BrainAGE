@@ -136,7 +136,7 @@ files = cell(numel(D.data),1);
 n = 0;
 for i=1:numel(D.data)
   datafolder = fullfile(D.data{i}, subfolder);
-  files{i} = spm_select('FPList',datafolder,['^' seg]);
+  files{i} = spm_select('FPListRec',datafolder,['^' seg]);
   k = (n + 1):(n + size(files{i},1));
   n = n + size(files{i},1);
   
