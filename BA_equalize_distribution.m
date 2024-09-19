@@ -62,6 +62,7 @@ end
 
 % select smaller subsample as reference if reference sample is larger than
 % source sample
+sample_src0 = sample_src;
 sample_ref0 = sample_ref;
 if n_ref > n_src || false
   ratio = ceil(n_ref/n_src);
@@ -86,7 +87,7 @@ m = numel(opts.tol);
 if m ~=  m0, error('Size mismatch. Tolerance must be defined with %d entries.',m0); end
 
 cost = zeros(n_src);
-scl = opts.weight./max([sample_ref0; sample_src]);
+scl = opts.weight./std([sample_ref0; sample_src]);
 
 for j = 1:m
   ind = sample_src(:,j) < opts.range(1,j) | sample_src(:,j) > opts.range(2,j);
