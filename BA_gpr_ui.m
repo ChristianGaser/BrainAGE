@@ -64,14 +64,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.PCA_method      - method for PCA
 %                    'eig' Eigenvalue Decomposition of the covariance matrix (faster but less accurate, for compatibiliy)
 %                    'svd' Singular Value Decomposition of X (the default)
-% D.k_fold          - k-fold validation if training and test sample are the same or only one is defined (10-fold as default)
-%                     Common approach for k-fold is to divide the sample into k parts and to use the
-%                     larger part (n-n/k) for training and the remaining part (n/k) for testing.
-% D.k_fold_TPs      - definition of time points for k-fold validation to ensure that multiple time points of one subject are not mixed 
-%                     between test and training data (only necessary to define for longitudinal data and k-fold validation)
-% D.k_fold_reps     - Number of repeated k-fold cross-validation
-% D.k_fold_rand     - As default the age values for the training sample is sorted and every k-th data is selected for training to minimize age 
-%                     differences between training and test data. With k_fold_rand you can set the seed for the random number generator.
 % D.p_dropout       - Dropout probability to randomly exclude voxels/data points to implement an uncertainty-aware approach using a 
 %                     Monte-Carlo Dropout during inference. That means that during testing, voxels are randomly dropped out according 
 %                     to the dropout probabilities. This process is repeated multiple times, and each time, the model produces 
@@ -83,7 +75,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     1 - Weighted GLM average: use GLM estimation to estimate model weights to minimize MAE
 %                     2 - Average: use mean to weight different models
 %                     3 - GLM: use GLM estimation to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
-%                     4 - Stacking: use GPR to combine models (EXPERIMENTAL!, only works with k_fold validation)
 %                     5 - Weighted Average: (average models with weighting w.r.t. squared MAE) (default)
 %                     6 - GLM: use GLM estimation for different tissues (i.e. GM/WM) to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
 %                         In contrast to ensemble model 3, we here only use the mean tissue values and not all models to estimate weights
@@ -103,8 +94,9 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.eqdist          - options for age and sex equalization between test and train
 % D.eqdist.weight   - vector of size 2 that allows to weight the cost function for age and sex equalization
 % D.eqdist.range    - matrix 2 x 2 which defines the age range and sex range for equalization
-% D.eqdist.tol      - vector of size 2 that defines tolerance between mean value of
-%                     age_test and age_train and male_test and male_train
+% D.eqdist.tol      - vector of size 2 that defines tolerance between mean value of age_test and age_train and male_test and male_train
+%                     A recommended value is [3 Inf], which means that a mean difference in age of 3 years is allowd,
+%                     while sex is not considered.
 % D.eqdist.debug    - print debug info if set (default 0)
 % D.corr            - additionally define parameter that can be correlated to BrainAGE if only one group is given
 % D.define_cov      - optionally define continous parameter that should be used instead of age for more general use 
@@ -164,6 +156,15 @@ else
   if D.normalize_BA == 1
     D.normalize_BA = 5;
   end
+end
+
+% check whether k-fold validation is defined
+if isfield(D,'n_fold') || isfield(D,'k_fold')
+  fprintf('-------------------------------------------------------------\n');
+  fprintf('For using k-fold validation you have to call BA_gpr_kfold_ui.\n');
+  fprintf('-------------------------------------------------------------\n');
+  [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_kfold_ui(D)
+  return;
 end
 
 if ~isfield(D,'spiderplot') || (isfield(D,'spiderplot') && ~isfield(D.spiderplot,'func'))
@@ -275,15 +276,6 @@ if ~isfield(D,'data')
   D.data = D.train_array{1};
 end
 
-% set default for k_fold_reps 
-if ~isfield(D,'k_fold_reps')
-  D.k_fold_reps = 1;
-end
-
-if isfield(D,'k_fold_rand') && D.k_fold_reps > 1
-  error('D.k_fold_rand cannot be used together with D.k_fold_reps because repeated k-fold would always use the same random numbers without variations.');
-end
-
 % set default for droput probability 
 if ~isfield(D,'p_dropout')
   D.p_dropout = 0;
@@ -291,11 +283,6 @@ end
 
 if iscell(D.data)
   D.data = char(D.data);
-end
-
-% consider old syntax and name
-if isfield(D,'n_fold') && ~isfield(D,'k_fold')
-  D.k_fold = D.n_fold;
 end
 
 % if comcat is defined and set to 0 then remove this field
@@ -396,10 +383,6 @@ if ~isfield(D,'ind_adjust')
   D.ind_adjust = D.ind_groups{1};
 end
 
-if isfield(D,'run_kfold') && ~isfield(D,'train_array')
-  D.train_array = {D.data};
-end
-
 if isfield(D,'weighting') && ~isfield(D,'ensemble')
   D.ensemble = D.weighting;
   fprintf('This option is deprecated. Use the option ''ensemble'' instead.\n');
@@ -408,338 +391,47 @@ end
 
 % check whether contrast was defined for ensemble=3
 if isfield(D,'ensemble')
-  if numel(D.ensemble) > 1 && ~isfield(D,'k_fold')
-    error('Multiple ensembles are only allowed for k-fold validation.');
-  end
   if (abs(D.ensemble(1)) == 3 || abs(D.ensemble(1)) == 6) && ~isfield(D,'contrast')
     error('D.contrast has to be defined.');
   end
 end
 
 % print some parameters
-if ~isfield(D,'run_kfold')
-  res = []; seg = []; smo = [];
-  for i = 1:numel(D.res_array)
-    res = [res D.res_array{i} ' '];
-  end
-  for i = 1:numel(D.smooth_array)
-    smo = [smo D.smooth_array{i} ' '];
-  end
-  for i = 1:numel(D.seg_array)
-    seg = [seg D.seg_array{i} ' '];
-  end
-  fprintf('--------------------------------------------------------------\n');
-  fprintf('Data:         \t%s\nResolution:   \t%s\nSmoothing:    \t%s\nSegmentation:  \t%s\nThreshold-Std:\t%d\n',...
-    [D.data D.relnumber],res,smo,seg,D.threshold_std);
-  if isfield(D,'train_array')
-    tra = [];
-    for i = 1:numel(D.train_array)
-      tra = [tra D.train_array{i} ' '];
-    end
-    fprintf('Training-Data:\t%s\n',tra);
-  end
-  if isfield(D,'ensemble')
-    fprintf('Model-Weight: \t%d\n',D.ensemble);
-  end
-  if isfield(D,'k_fold')
-    fprintf('k-Fold:       \t%d\n',D.k_fold);
-  end
-  if D.p_dropout
-    fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
-  end
-  if D.RVR
-    fprintf('RVR:          \t%d\n',D.RVR);
-  end
-  fprintf('PCA:           \t%d (method: %s)\n',D.PCA,D.PCA_method);
-  fprintf('Trend method:  \t%d\n',D.trend_method);
-  fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
-  fprintf('--------------------------------------------------------------\n');
-  if isfield(D,'parcellation') & D.parcellation
-    fprintf('Estimate local BrainAGE with parcellation into lobes.\n');
-  end
+res = []; seg = []; smo = [];
+for i = 1:numel(D.res_array)
+  res = [res D.res_array{i} ' '];
 end
-
-% run k-fold validation if no data field is given or validation with k_fold is defined
-if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) && ~isfield(D,'run_kfold')
-  
-  if isfield(D,'ensemble') && (abs(D.ensemble(1)) == 3 || abs(D.ensemble(1)) == 6) && numel(D.ind_groups) < 1
-    error('Ensemble model 3 or 6 cannot be used within k-fold validation with more than one group.');
+for i = 1:numel(D.smooth_array)
+  smo = [smo D.smooth_array{i} ' '];
+end
+for i = 1:numel(D.seg_array)
+  seg = [seg D.seg_array{i} ' '];
+end
+fprintf('--------------------------------------------------------------\n');
+fprintf('Data:         \t%s\nResolution:   \t%s\nSmoothing:    \t%s\nSegmentation:  \t%s\nThreshold-Std:\t%d\n',...
+  [D.data D.relnumber],res,smo,seg,D.threshold_std);
+if isfield(D,'train_array')
+  tra = [];
+  for i = 1:numel(D.train_array)
+    tra = [tra D.train_array{i} ' '];
   end
-
-  ind_adjust = D.ind_adjust;
-    
-  % use 10-fold as default
-  if ~isfield(D,'k_fold')
-    D.k_fold = 10;
-  end
-    
-  ind_all  = [];
-  age_all  = [];
-  BA_all   = [];
-  
-  % ensure that this field is always defined and set to ones by default
-  if ~isfield(D,'k_fold_TPs')
-    D.k_fold_TPs = ones(D.n_data,1);
-  end
-  
-  % number of time points
-  n_TPs = max(D.k_fold_TPs);
-  
-  % for longitudinal data only
-  if n_TPs > 1
-    % find order of time point definition
-    % offset_TPs = 1 -> alternating order (e.g. 1 2 1 2 1 2)
-    % offset_TPs > 1 -> consecutive order (e.g. 1 1 1 2 2 2)
-    offset_TPs = find(diff(D.k_fold_TPs), 1 );
-    
-    ns = [];
-    for i = 1:n_TPs
-      ns = [ns sum(D.k_fold_TPs==i)];
-    end
-    
-    if any(diff(ns))
-      error('Time points should all have same size if you apply k-fold to longitudinal data.');
-    end
-    
-    if offset_TPs == 1
-      fprintf('Longitudinal data with %d time points with alternating order found.\n',n_TPs);
-    else
-      fprintf('Longitudinal data with %d time points with consecutive order found.\n',n_TPs);
-    end
-
-    % sort only data for TP1
-    [~, ind_age] = sort(age(D.k_fold_TPs==1));
-    
-    if offset_TPs == 1
-      ind_age = ind_age * n_TPs - (n_TPs-1);
-    end
-    
-    for i = 1:n_TPs-1
-      ind_age = [ind_age; ind_age+i*offset_TPs];
-    end
-  else
-    [~, ind_age] = sort(age);
-  end
-
-  min_hyperparam = cell(numel(D.res_array),numel(D.smooth_array),numel(D.seg_array),numel(D.train_array));
-  
-  for rep = 1:D.k_fold_reps
-    
-    % control random number generation to get always the same seeds
-    if isfield(D,'k_fold_rand')
-      if exist('rng','file') == 2
-        rng('default')
-        rng(D.k_fold_rand)
-      else
-        rand('state',D.k_fold_rand);
-      end
-      ind_age = randperm(numel(age))';
-    end
-    
-    % use random indexing of age for repeated k-fold cross-validation
-    if D.k_fold_reps > 1 && ~isfield(D,'k_fold_rand')
-      if exist('rng','file') == 2
-        rng('default')
-        rng(rep)
-      else
-        rand('state',rep);
-      end
-      ind_age = randperm(numel(age))';
-    end
-  
-    for j = 1:D.k_fold
-      % indicate that validation is running and will not be called in nested loops
-      D.run_kfold = j;
-      D.run_repetition = rep;
-
-      ind_fold0 = j:D.k_fold:D.n_data;
-
-      % try to use similar age distribution between folds
-      % by using sorted age index
-      ind_test = ind_age(ind_fold0)';
-
-      % build training sample using remaining subjects
-      ind_train = ind_age';
-      ind_train(ind_fold0) = [];
-
-      % I know this should never happen, but be absolutely sure we check
-      % whether there is some overlap between training and test data
-      n_overlaps = sum(ismember(ind_train,ind_test));
-      if n_overlaps
-        fprintf('WARNING: There is an overlap of %d subjects between training and test data.\n',n_overlaps)
-      end
-
-      % build indices for training and test
-      ind_train_array{j} = ind_train;
-      ind_test_array{j}  = ind_test;
-
-      % collect age and indces in the order w.r.t. the folding
-      age_all       = [age_all; age(ind_test)];
-      ind_all       = [ind_all ind_test];
-
-      % prepare BA_gpr_ui parameters
-      D.ind_groups  = {ind_test};
-      D.ind_adjust  = ind_test;
-      D.ind_train   = ind_train;
-
-      % call nested loop
-      [BA_fold_all, ~, ~, D] = BA_gpr_ui(D);
-
-      if j == 1 && rep == 1
-        BA_all = zeros(D.n_data,D.k_fold,D.k_fold_reps,D.n_regions,size(BA_fold_all,2)/D.n_regions);
-      end
-
-      % we keep entries for each loop because there might be some overlapping
-      % entries
-      BA_all(ind_test,j,rep,:,:) = reshape(BA_fold_all,size(BA_fold_all,1),D.n_regions,size(BA_fold_all,2)/D.n_regions);
-    end
-  end
-  
-  % we have to estimate the mean by using the sum and dividing by the
-  % actual numbers of entries (~=0)
-  n_entries = sum(BA_all(:,:,1)~=0,2);
-  BA_all0 = squeeze(sum(BA_all,2))./n_entries;
-  BA_all = zeros(D.n_data,size(BA_fold_all,2)/D.n_regions,D.n_regions);
-  for k = 1:D.n_data
-    BA_all(k,:,:) = squeeze(BA_all0(k,:,:))';
-  end
-
-  if any(n_entries>1)
-    if min(n_entries) == max(n_entries)
-      fprintf('There are %d overlapping entries that were averaged.\n',max(n_entries)); 
-    else
-      fprintf('There are %d-%d overlapping entries that were averaged.\n',max(n_entries),max(n_entries)); 
-    end
-  end
-
-  % we use the mean over all repetitions
-  if D.k_fold_reps > 1
-    BA_all = squeeze(mean(BA_all,2));
-  end
-  
-  D.ind_adjust = ind_adjust; % rescue original ind_adjust
-  
-  % go through different ensembles if defined
-  D0 = D;
-  
-  D.MAE = [];
-    
-  if isfield(D,'ensemble')
-    BA_unsorted_weighted = [];
-
-    for m = 1:numel(D.ensemble)
-      D0.ensemble = D.ensemble(m);
-      
-      % for GPR stacking we have to initially apply trend correction (to
-      % all single models)
-      if D.trend_degree >= 0 && D0.ensemble == 4
-        BA_all1 = BA_all;
-        for i = 1:size(BA_all,2)
-          BA_all1(:,i) = apply_trend_correction(BA_all(:,i),age,D,0);
-        end
-        [~, PredictedAge_unsorted_weighted] = ensemble_models(BA_all1,age,D0,ind_test_array,ind_train_array);
-      else
-        [~, PredictedAge_unsorted_weighted] = ensemble_models(BA_all,age,D0,ind_test_array,ind_train_array);
-      end
-      
-      BA_unsorted_weighted0 = PredictedAge_unsorted_weighted-age;
-      
-      if D.verbose > 0 && D.trend_degree >= 0 && ~isfield(D,'define_cov')
-        fprintf('\n===========================================================\n'); 
-        fprintf(ensemble_str{D0.ensemble+1}); fprintf('\n');
-        str_trend = {'No age correction','Age correction using BA','Age correction using PredicatedAge (Cole)'};
-        co = 0:2;
-        co(co == D.trend_method) = [];
-        for i=co
-          D1 = D;
-          D1.trend_method = i;
-          BA_unsorted_weighted1 = apply_trend_correction(BA_unsorted_weighted0,age,D1);
-          fprintf('\n%s:\n',str_trend{i+1});
-
-          MAE_weighted = mean(abs(BA_unsorted_weighted1));
-          cc = corrcoef([BA_unsorted_weighted1+age age]);
-          fprintf('Overall weighted MAE for %d-fold = ',D.k_fold);
-          fprintf('%g ',MAE_weighted); fprintf('\n');
-          fprintf('Overall weighted correlation for %d-fold = ',D.k_fold);
-          fprintf('%g ',cc(end,1:end-1)); fprintf('\n');
-        end
-        fprintf('\n===========================================================\n'); 
-      end
-      
-      % apply final trend correction to weighted model
-      if D.trend_degree >= 0
-        [BA_unsorted_weighted0,~,Adjustment] = apply_trend_correction(BA_unsorted_weighted0,age,D);
-      end
-
-      MAE_weighted = mean(abs(BA_unsorted_weighted0));
-      D.MAE = [D.MAE MAE_weighted];
-      if isfield(D,'define_cov')
-        cc = corrcoef([BA_unsorted_weighted0 age]);
-      else
-        cc = corrcoef([BA_unsorted_weighted0+age age]);
-      end
-      fprintf('\n===========================================================\n'); 
-      fprintf('%s (ensemble=%d)\n',ensemble_str{D0.ensemble+1},D0.ensemble);
-      if ~isfield(D,'define_cov')
-        fprintf('Overall weighted MAE for %d-fold = ',D.k_fold);
-        fprintf('%g ',MAE_weighted); fprintf('\n');
-      end
-      fprintf('Overall weighted correlation for %d-fold = ',D.k_fold);
-      fprintf('%g ',cc(end,1:end-1));
-      fprintf('\n============================================================\n\n'); 
-      BA_unsorted_weighted = [BA_unsorted_weighted BA_unsorted_weighted0];
-    end
-  else
-    BA_unsorted_weighted = BA_all;
-
-    % apply trend correction
-    if D.trend_degree >= 0
-      [BA_unsorted_weighted,~,Adjustment] = apply_trend_correction(BA_unsorted_weighted,age,D);
-    end
-    
-    % only print performance for single model
-    if size(BA_unsorted_weighted,2) == 1
-      D.MAE = mean(abs(BA_unsorted_weighted));
-      if isfield(D,'define_cov')
-        ind = ~isnan(age);
-        cc = corrcoef(BA_unsorted_weighted(ind),age(ind));
-      else
-        cc = corrcoef(BA_unsorted_weighted+age,age);
-      end
-      fprintf('\n===========================================================\n'); 
-      if ~isfield(D,'define_cov')
-        fprintf('Overall MAE for %d-fold = %g\n',D.k_fold,D.MAE);
-      end
-      fprintf('Overall correlation for %d-fold = %g\n',D.k_fold,cc(1,2));
-      fprintf('============================================================\n\n'); 
-    end
-  end
-  
-  BrainAGE_unsorted = BA_unsorted_weighted;
-  BrainAGE = BrainAGE_unsorted;
-  
-  if nargout > 2
-    % if site_adjust is empty we don't apply site adjustment
-    if isempty(D.site_adjust)
-      site_adjust = ones(D.n_data,1);
-    else
-      site_adjust = D.site_adjust;
-    end
-    
-    % apply trend correction only for non-weighted data
-    if D.trend_degree >= 0
-      % apply trend correction for each site separately
-      for i = 1:max(site_adjust)
-        ind_site = find(site_adjust == i);
-        for j = 1:size(BA_all,2)
-          BA_all(ind_site,j,:) = squeeze(BA_all(ind_site,j,:)) - Adjustment{i};
-        end
-      end
-    end      
-    BrainAGE_all = BA_all;
-  end
-  
-  return
+  fprintf('Training-Data:\t%s\n',tra);
+end
+if isfield(D,'ensemble')
+  fprintf('Model-Weight: \t%d\n',D.ensemble);
+end
+if D.p_dropout
+  fprintf('Prob-Dropout: \t%d\n',D.p_dropout);
+end
+if D.RVR
+  fprintf('RVR:          \t%d\n',D.RVR);
+end
+fprintf('PCA:           \t%d (method: %s)\n',D.PCA,D.PCA_method);
+fprintf('Trend method:  \t%d\n',D.trend_method);
+fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
+fprintf('--------------------------------------------------------------\n');
+if isfield(D,'parcellation') & D.parcellation
+  fprintf('Estimate local BrainAGE with parcellation into lobes.\n');
 end
 
 % check whether additional fields for weighted BA are available
@@ -893,19 +585,7 @@ for i = 1:numel(D.res_array)
         end
 
         if D.verbose > 1, fprintf('\n'); end
-        
-        % apply comcat harmonization while preserving age effects
-        % do this here only if training and test data are the same (i.e. k-fold validation)
-        % otherwise apply comcat in BA_gpr.m
-        if isfield(D,'comcat') && strcmp(D.train_array{1},D.data)
-          if length(D.comcat) ~= length(D.age_test)
-            error('Size of site definition in D.comcat (n=%d) differs from sample size (n=%d)\n',...
-              length(D.comcat),length(D.age_test));
-          end
-          fprintf('Apply ComCat for %d site(s)\n',numel(unique([D.comcat])));
-          D.Y_test = cat_stat_comcat(D.Y_test, D.comcat, [], D.age_test, 0, 3, 0, 1);
-        end
-        
+                
         if ~isfield(D,'ind_groups')
           D.ind_groups = {1:length(D.age_test)};
         end
@@ -1010,8 +690,8 @@ for i = 1:numel(D.res_array)
           continue
         end
         
-        % dont' apply trend correction during k-fold validation
-        if (D.trend_ensemble || ~multiple_BA) && D.trend_degree >= 0 && ~isfield(D,'k_fold')
+        % dont' apply trend correction
+        if (D.trend_ensemble || ~multiple_BA) && D.trend_degree >= 0
           BrainAGE = apply_trend_correction(BrainAGE,D.age_test,D);
         end
         if isfield(D,'define_cov')
@@ -1030,18 +710,8 @@ for i = 1:numel(D.res_array)
           cc(1,2) = NaN;
         end
         
-        if isfield(D,'run_kfold') && D.run_kfold > 0
-          if isfield(D,'run_repetition') && D.k_fold_reps > 1
-            fprintf('repetition %02d/%02d fold %02d/%02d %s %s %s | test data: n=%d MAE/corr:',...
-               D.run_repetition, D.k_fold_reps, D.run_kfold,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust));
-          else
-            fprintf('fold %02d/%02d %s %s %s | test data: n=%d MAE/corr:',...
-               D.run_kfold,D.k_fold,D.res,D.smooth,seg,numel(D.ind_adjust));
-          end
-        else
-          fprintf('%s %s %s | test data: n=%d MAE/corr:',...
-             D.res,D.smooth,seg,numel(D.ind_adjust));
-        end
+        fprintf('%s %s %s | test data: n=%d MAE/corr:',...
+           D.res,D.smooth,seg,numel(D.ind_adjust));
         for r = 1:D.n_regions
           fprintf(' %2.3f/%1.3f',MAE(r),cc(end,r));
         end
@@ -1233,7 +903,7 @@ for i = 1:numel(D.res_array)
 end
 
 % estimate ensembles
-if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_kfold'))
+if multiple_BA
 
   if D.n_regions > 1
     BA_unsorted0 = reshape(BA_unsorted,D.n_data,D.n_regions,size(BA_unsorted,2)/D.n_regions);
@@ -1246,7 +916,7 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   if isfield(D,'ensemble_method') && D.ensemble_method == 4, fprintf('GPR ensemble approach is only useful for k-fold validation.\n'); end
   BA_unsorted_weighted  = ensemble_models(BA_unsorted,D.age_test,D);
     
-  if D.verbose > 0 && D.trend_degree >= 0 && ~isfield(D,'k_fold')
+  if D.verbose > 0 && D.trend_degree >= 0
     fprintf('\n===========================================================\n'); 
     str_trend = {'No age correction','Age correction using BA','Age correction using PredicatedAge (Cole)'};
     co = 0:2;
@@ -1270,8 +940,8 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
 
   % estimate MAE and correlation using BA without normalization
   BA_unsorted_weighted0 = BA_unsorted_weighted;
-  % apply final trend correction to weighted model if not k-fold validation
-  if D.trend_degree >= 0 && ~isfield(D,'k_fold')
+  % apply final trend correction to weighted model
+  if D.trend_degree >= 0
     BA_unsorted_weighted0 = apply_trend_correction(BA_unsorted_weighted0,age,D);
   end
   
@@ -1325,8 +995,8 @@ if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_k
   set(gcf,'MenuBar','none');
 
 
-  % apply final trend correction to weighted model if not k-fold validation
-  if D.trend_degree >= 0 && ~isfield(D,'k_fold')
+  % apply final trend correction to weighted model
+  if D.trend_degree >= 0
     BA_unsorted_weighted = apply_trend_correction(BA_unsorted_weighted,age,D);
   end
 
@@ -1441,7 +1111,7 @@ else
 end
 
 % show plot for multiple values if defined
-if multiple_BA && ((isfield(D,'run_kfold') && ~D.run_kfold) || ~isfield(D,'run_kfold'))
+if multiple_BA
       
   ind_groups = [];
   for o = 1:n_groups
