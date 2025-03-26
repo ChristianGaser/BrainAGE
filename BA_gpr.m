@@ -338,7 +338,11 @@ if isfield(D,'eqdist') && isfield(D.eqdist,'tol')
 
     % create sample for age/sex for test as reference and train as source
     if ~isfield(D,'male_test'), D.male_test = round(rand(size(D.age_test))); end
-    sample_ref = [D.age_test D.male_test];
+    ind_groups = [];
+    for o = 1:numel(D.ind_groups)
+      ind_groups = [ind_groups; D.ind_groups{o}];
+    end
+    sample_ref = [D.age_test(ind_groups) D.male_test(ind_groups)];
     sample_src = [age_train male_train];
 
     % find assignement using Hungarian method

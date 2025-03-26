@@ -620,26 +620,28 @@ for i = 1:numel(D.res_array)
            
         % print information about training sample only once for D.threshold_std == Inf or otherwise always
         if D.verbose && (i==1 && j==1 && k==1) || isfinite(D.threshold_std)
+          % only use selected data
+          age_test = age(ind_test);
           fprintf('\n%d subjects used for training (age %3.1f..%3.1f years)\n',length(D.age_train),min(D.age_train),max(D.age_train));
           fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(D.age_train),std(D.age_train),sum(D.male_train),length(D.age_train)-sum(D.male_train));
           if ~isfinite(D.threshold_std)
             fprintf('\n');
           end
-          fprintf('\n%d subjects used for prediction (age %3.1f..%3.1f years)\n',length(age),min(age),max(age));
+          fprintf('\n%d subjects used for prediction (age %3.1f..%3.1f years)\n',length(age_test),min(age_test),max(age_test));
           if exist('male','var')
-            fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(age),std(age),sum(male),length(age)-sum(male));
+            fprintf('Mean age\t%g (SD %g) years\nMales/Females\t%d/%d\n',mean(age_test),std(age_test),sum(male),length(age_test)-sum(male));
           else
-            fprintf('Mean age\t%g (SD %g) years\n',mean(age),std(age));
+            fprintf('Mean age\t%g (SD %g) years\n',mean(age_test),std(age_test));
           end
           if ~isfinite(D.threshold_std)
             fprintf('\n');
           end
 
           figure(25)
-          X0 = linspace(min(D.age_train), max(D.age_train), 20);
+          X0 = linspace(min([D.age_train; age_test]), max([D.age_train; age_test]), 20);
           H0 = histogram(D.age_train, X0);
           hold on
-          H1 = histogram(age, X0);
+          H1 = histogram(age_test, X0);
           legend('Age training','Age test')
           title('Age distribution')
           set(gcf,'MenuBar','none');
