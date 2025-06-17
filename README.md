@@ -99,14 +99,14 @@ BA_data2mat(D);
 This function outputs segmented, smoothed and resampled volumes as .mat files in specified or default directories. For example, using the above parameters, the output files will be:
 
 ```
-s8_8mm_rp1_Jena_s87_c108_CAT12.9.mat
-s8_8mm_rp2_Jena_s87_c108_CAT12.9.mat
-s4_8mm_rp1_Jena_s87_c108_CAT12.9.mat
-s4_8mm_rp2_Jena_s87_c108_CAT12.9.mat
-s8_4mm_rp1_Jena_s87_c108_CAT12.9.mat
-s8_4mm_rp2_Jena_s87_c108_CAT12.9.mat
-s4_4mm_rp1_Jena_s87_c108_CAT12.9.mat
-s4_4mm_rp2_Jena_s87_c108_CAT12.9.mat
+s8rp1_8mm_Jena_s87_c108_CAT12.9.mat
+s8rp2_8mm_Jena_s87_c108_CAT12.9.mat
+s4rp1_8mm_Jena_s87_c108_CAT12.9.mat
+s4rp2_8mm_Jena_s87_c108_CAT12.9.mat
+s8rp1_4mm_Jena_s87_c108_CAT12.9.mat
+s8rp2_4mm_Jena_s87_c108_CAT12.9.mat
+s4rp1_4mm_Jena_s87_c108_CAT12.9.mat
+s4rp2_4mm_Jena_s87_c108_CAT12.9.mat
 ```
 
 If you have defined multiple folders for `D.data` such as in the example above, the data from the specified folders will be concatenated (first 'Jena_s87_c108/c', then 'Jena_s87_c108/s1_neg_items50' and so on) and saved in a single .mat file format for each segmentation. When using data from multiple folders, ensure that all pre-processed files are arranged in an orderly manner according to subject age and gender.
