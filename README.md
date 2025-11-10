@@ -58,7 +58,7 @@ Jena_s87_c108/s3_halluz_items50/rp1_CAT12.9
 Jena_s87_c108/s3_halluz_items50/rp2_CAT12.9
 ```
 
-## 3. Resample and Smooth Pre-processed Data
+## 3. Resample and Smooth Pre-processed Data and Save Data
 
 The BA_data2mat function is designed to prepare pre-processed data for machine learning analysis by converting spatially registered volumes into Matlab .mat files. It masks out non-brain areas by applying a mask to the volume data to ensure that only relevant brain information is included, and performs resampling and smoothing of the data at different scales (e.g. 4/8mm for both processes as default for rp1 and rp2):
 
@@ -113,7 +113,18 @@ If you have defined multiple folders for `D.data` such as in the example above, 
 
 If you intend to include other morphometric measures (e.g. rp3 for CSF), see the BA_data2mat help text for a more detailed description of the available options.
 
-## 4. BrainAGE Estimation
+## 4. Download Training Data
+
+The default normative database for adults (OASIS3_549+IXI547+CamCan651+SALD494+NKIe516) cover a large age range (18..97 years) and consist of the following data:
+549 subjects from [OASIS3](https://sites.wustl.edu/oasisbrains/home/oasis-3/)
+547 subjects from [IXI](https://brain-development.org/ixi-dataset/)
+651 subjects from [CamCan](https://cam-can.mrc-cbu.cam.ac.uk/dataset/)
+494 subjects from [SALD](https://fcon_1000.projects.nitrc.org/indi/retro/sald.html)
+516 subjects from [NKIe](https://fcon_1000.projects.nitrc.org/indi/enhanced/sharing_neuro.html)
+
+You can download the preprocessed training data (rp1/rp2) for CAT12.9 [here](https://github.com/ChristianGaser/BrainAGE/releases/download/v1.0/OASIS3_549+IXI547+CamCan651+SALD494+NKIe516.zip)
+
+## 5. BrainAGE Estimation
 The function `BA_gpr_ui` is the core function to estimate BrainAGE. If you need more information, use the help function to see all the available options.
 
 ```
@@ -177,7 +188,7 @@ D.ensemble = 5;
 ![](figures/GlobalBrainAGE.png "Global BrainAGE")
 Global BrainAGE Estimation in Schizophrenia
 
-## 5. Regional BrainAGE Estimation
+## 6. Regional BrainAGE Estimation
 We have recently also introduced our local BrainAGE approach that uses this [parcellation](https://doi.org/10.1007/s00429-009-0203-y) into lobes to additionally estimate local BrainAGE values.
 
 ![](figures/Parcellation.png "Lobale Parcellation")
