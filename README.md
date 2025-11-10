@@ -116,13 +116,13 @@ If you intend to include other morphometric measures (e.g. rp3 for CSF), see the
 ## 4. Download Training Data
 
 The default normative database for adults (OASIS3_549+IXI547+CamCan651+SALD494+NKIe516) cover a large age range (18..97 years) and consist of the following data:
-549 subjects from [OASIS3](https://sites.wustl.edu/oasisbrains/home/oasis-3/)
-547 subjects from [IXI](https://brain-development.org/ixi-dataset/)
-651 subjects from [CamCan](https://cam-can.mrc-cbu.cam.ac.uk/dataset/)
-494 subjects from [SALD](https://fcon_1000.projects.nitrc.org/indi/retro/sald.html)
-516 subjects from [NKIe](https://fcon_1000.projects.nitrc.org/indi/enhanced/sharing_neuro.html)
+* 549 subjects from [OASIS3](https://sites.wustl.edu/oasisbrains/home/oasis-3/)
+* 547 subjects from [IXI](https://brain-development.org/ixi-dataset/)
+* 651 subjects from [CamCan](https://cam-can.mrc-cbu.cam.ac.uk/dataset/)
+* 494 subjects from [SALD](https://fcon_1000.projects.nitrc.org/indi/retro/sald.html)
+* 516 subjects from [NKIe](https://fcon_1000.projects.nitrc.org/indi/enhanced/sharing_neuro.html)
 
-You can download the preprocessed training data (rp1/rp2) for CAT12.9 [here](https://github.com/ChristianGaser/BrainAGE/releases/download/v1.0/OASIS3_549+IXI547+CamCan651+SALD494+NKIe516.zip)
+You can download the preprocessed training data (rp1/rp2) for CAT12.9 [here](https://github.com/ChristianGaser/BrainAGE/releases/download/v1.0/OASIS3_549+IXI547+CamCan651+SALD494+NKIe516.zip).
 
 ## 5. BrainAGE Estimation
 The function `BA_gpr_ui` is the core function to estimate BrainAGE. If you need more information, use the help function to see all the available options.
