@@ -30,6 +30,7 @@ function BA_data2mat(D, fwhm, res, seg)
 %   D.subfolder - String; subfolder name where segmentations are saved. Default: [seg release].
 %   D.add_str   - String; additional string appended to the default subfolder name. Default: ''.
 %   D.age_range - Numeric array; specifies the inclusive age range as [minAge, maxAge]. Default: [0, Inf].
+%   D.mask_th   - Numeric value; specifies the threshold for the brainmask. Default: 0.5.
 %
 % Example:
 %   % Define processing parameters
@@ -159,13 +160,21 @@ if numel(age) ~= n
   fprintf('Only %d of %d values for age found.\n',numel(age),n);
 end
 
-name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release '.mat'];
+if isfield(D,'mask_th')
+  name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name '_mask' num2str(D.mask_th) D.release '.mat'];
+else
+  name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release '.mat'];
+end
+
+data_struct = struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',...
+    cat_get_defaults('extopts.brainmask'),'fname',name);
+if isfield(D,'mask_th')
+  data_struct.mask_th = D.mask_th;
+end
 
 % save mat-files using cat_io_data2mat
 if isfield(D,'male')
-  cat_io_data2mat(struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',cat_get_defaults('extopts.brainmask'),...
-   'fname',name),struct('age',age,'male',male));
+  cat_io_data2mat(data_struct,struct('age',age,'male',male));
 else
-  cat_io_data2mat(struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',cat_get_defaults('extopts.brainmask'),...
-   'fname',name),struct('age',age));
+  cat_io_data2mat(data_struct,struct('age',age));
 end
