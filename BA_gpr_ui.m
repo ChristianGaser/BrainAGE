@@ -310,7 +310,7 @@ if isfield(D,'define_cov')
     end
   else
     % assume that D.define_cov is correctly defined and we can obtain
-    % data size form that
+    % data size from that
     D.n_data = numel(D.define_cov);
     age = D.define_cov;
   end
@@ -536,7 +536,7 @@ for i = 1:numel(D.res_array)
         end
                 
         D.age_test = age;
-        
+
         if exist('male','var')
           D.male_test = male;
         end
@@ -1165,7 +1165,7 @@ end
 
 if (D.age_range(1)-min(D.age_test)) > 2 || (max(D.age_test)-D.age_range(2)) > 2
   fprintf('\n********************************************************************\n'); 
-  warning('Warning: Defined age range of training sample (%3.1f..%3.1f years) differs from real age range of sample %g..%g\n',...
+  fprintf('Warning: Defined age range of training sample (%3.1f..%3.1f years) differs from real age range of sample %g..%g\n',...
       D.age_range(1),D.age_range(2),min(D.age_test),max(D.age_test));
   fprintf('********************************************************************\n'); 
 end
@@ -1610,7 +1610,7 @@ PredictedAge = PredictedAge - avg_BrainAGE;
 MAE = mean(abs(BrainAGE));
 
 if MAE0/MAE > 4
-  warning('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n');
+  fprintf('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n');
 end
 
 %-------------------------------------------------------------------------------
