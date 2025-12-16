@@ -31,6 +31,8 @@ function BA_data2mat(D, fwhm, res, seg)
 %   D.add_str   - String; additional string appended to the default subfolder name. Default: ''.
 %   D.age_range - Numeric array; specifies the inclusive age range as [minAge, maxAge]. Default: [0, Inf].
 %   D.mask_th   - Numeric value; specifies the threshold for the brainmask. Default: 0.5.
+%   D.ind       - Logical array; specifies the data that should be included. 
+%                 This is helpful to ignore some data. Default: [0, end].
 %
 % Example:
 %   % Define processing parameters
@@ -73,7 +75,7 @@ function BA_data2mat(D, fwhm, res, seg)
 % ______________________________________________________________________
 
 % add cat12 path if not already done
-if ~exist('cat_io_data2mat')
+if ~exist('cat_io_data2mat','builtin')
   addpath(fullfile(spm('dir'),'toolbox','cat12'));
 end
 
@@ -119,18 +121,30 @@ end
 if isfield(D,'subfolder'), subfolder = D.subfolder;
 else, subfolder = [seg D.release D.add_str]; end
 
-if isfield(D,'male') male = D.male;
+if isfield(D,'male'), male = D.male;
 else, male = []; end
+
+n_data = numel(age);
+
+if isfield(D,'ind')
+  ind = D.ind;
+else 
+  ind = isfinite(1:n_data);
+end
 
 % find indices within defined age range
 if isfield(D,'age_range')
   ind_age = age >= D.age_range(1) & age <= D.age_range(2);
-  age = age(ind_age);
-  if ~isempty(male)
-    male = male(ind_age);
-  end
 else
-  ind_age = [];
+  ind_age = isfinite(1:n_data);
+end
+
+% exclude data outside defined age range or these wer not considered in
+% ind-field
+if size(ind,1) == size(ind_age,2)
+  ind = ind & ind_age';
+else
+  ind = ind & ind_age;
 end
 
 files = cell(numel(D.data),1);
@@ -147,10 +161,10 @@ for i=1:numel(D.data)
     fprintf('%d subjects found in %s.\n',size(files{i},1),datafolder);
   end
   
-  % remove files outsie defined age range
-  if ~isempty(ind_age)
-    files{i} = files{i}(ind_age(k),:);
-    fprintf('%d subjects outside defined age range will be removed from %s.\n',sum(~ind_age(k)),datafolder);
+  % remove files outside defined age range
+  if sum(ind(k)) ~= numel(age(k))
+    files{i} = files{i}(ind(k),:);
+    fprintf('%d subjects will be removed from %s (outside defined age range or excluded).\n',sum(~ind(k)),datafolder);
     n = n - sum(~ind_age(k));
   end
   
@@ -158,6 +172,11 @@ end
 
 if numel(age) ~= n
   fprintf('Only %d of %d values for age found.\n',numel(age),n);
+end
+
+age = age(ind);
+if ~isempty(male)
+  male = male(ind);
 end
 
 if isfield(D,'mask_th')
