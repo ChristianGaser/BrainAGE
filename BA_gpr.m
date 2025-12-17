@@ -265,7 +265,7 @@ if isfield(D,'ind_train')
   end
 end
 
-ind_age    = find(age_train >= D.age_range(1) & age_train <= D.age_range(2));
+ind_age = find(age_train >= D.age_range(1) & age_train <= D.age_range(2));
 if isfield(D,'k_fold') && D.k_fold > 0 && numel(ind_age) < numel(age_train)
   fprintf('Warning: Limiting age range is not allowed for k-fold validation.\n');
 else

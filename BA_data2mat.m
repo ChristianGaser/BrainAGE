@@ -170,13 +170,13 @@ for i=1:numel(D.data)
   
 end
 
-if numel(age) ~= n
-  fprintf('Only %d of %d values for age found.\n',numel(age),n);
-end
-
 age = age(ind);
 if ~isempty(male)
   male = male(ind);
+end
+
+if numel(age) ~= n
+  fprintf('Only %d of %d values for age found.\n',numel(age),n);
 end
 
 if isfield(D,'mask_th')

@@ -956,26 +956,27 @@ if multiple_BA
     fprintf('********************************************************************\n\n'); 
   end  
   
-  figure(22)
-  clf
-  hold on 
-  [p,S] = polyfit(D.age_test(D.ind_adjust),D.age_test(D.ind_adjust)+BA_unsorted_weighted(D.ind_adjust),1);
-  yfit = polyval(p,[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))]);
-
-  for i = 1:n_groups
-    plot(D.age_test(D.ind_groups{i}),D.age_test(D.ind_groups{i})+BA_unsorted_weighted(D.ind_groups{i}),'*','color',groupcolor(i,:))
+  if size(BA_unsorted_weighted,2) == 1
+    figure(22)
+    clf
+    hold on 
+    [p,S] = polyfit(D.age_test(D.ind_adjust),D.age_test(D.ind_adjust)+BA_unsorted_weighted(D.ind_adjust),1);
+    yfit = polyval(p,[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))]);
+  
+    for i = 1:n_groups
+      plot(D.age_test(D.ind_groups{i}),D.age_test(D.ind_groups{i})+BA_unsorted_weighted(D.ind_groups{i}),'*','color',groupcolor(i,:))
+    end
+    line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],...
+      'Color',[0 0 0],'lineWidth',2);
+    line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],yfit,...
+      'Color',[1 0 0],'lineWidth',2);    hold off
+    title('Data')
+    xlabel('Chronological Age [years]')
+    ylabel('Predicted Age [years]')
+    legend(char(D.name_groups, 'Reference', 'Linear Age Fit'),'Location','NorthWest')
+    set(gca,'FontSize',20);
+    set(gcf,'MenuBar','none');
   end
-  line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],...
-    'Color',[0 0 0],'lineWidth',2);
-  line([0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))],yfit,...
-    'Color',[1 0 0],'lineWidth',2);    hold off
-  title('Data')
-  xlabel('Chronological Age [years]')
-  ylabel('Predicted Age [years]')
-  legend(char(D.name_groups, 'Reference', 'Linear Age Fit'),'Location','NorthWest')
-  set(gca,'FontSize',20);
-  set(gcf,'MenuBar','none');
-
 
   % apply final trend correction to weighted model
   if D.trend_degree >= 0
