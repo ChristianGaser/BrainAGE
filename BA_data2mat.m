@@ -163,7 +163,7 @@ n = 0;
 for i=1:numel(D.data)
   datafolder = fullfile(D.data{i}, subfolder);
   if is_surf
-    files{i} = spm_select('FPListRec',datafolder,[seg '.*.gii']);
+    files{i} = spm_select('FPListRec',datafolder,['^s' num2str(fwhm) '.*' seg '.*.gii']);
   else
     files{i} = spm_select('FPListRec',datafolder,['^' seg]);
   end
