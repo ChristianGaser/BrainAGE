@@ -89,6 +89,13 @@ else, res_default  = {4,8}; end
 if isfield(D,'seg'), seg_default = D.seg;
 else, seg_default  = {'rp1','rp2'}; end
 
+if contains(seg_default,'mesh')
+  is_surf = 1;
+  res_default = {0};
+else
+  is_surf = 0;
+end
+
 if ~isfield(D,'add_str'), D.add_str = ''; end
 
 % go through the different resampling, smoothing sizes and segmentations
@@ -96,7 +103,11 @@ if nargin < 2
   for i = 1:numel(fwhm_default)
     for j = 1:numel(res_default)
       for k = 1:numel(seg_default)
-        fprintf('\ns%d%s_%dmm:\n',fwhm_default{i},seg_default{k},res_default{j});
+        if is_surf
+          fprintf('\ns%d.%s:\n',fwhm_default{i},seg_default{k});
+        else
+          fprintf('\ns%d%s_%dmm:\n',fwhm_default{i},seg_default{k},res_default{j});
+        end
         para = sprintf('(%s,%d,%d,''%s'')','D',fwhm_default{i},res_default{j},seg_default{k});
         eval(['BA_data2mat' para])
       end
@@ -151,7 +162,11 @@ files = cell(numel(D.data),1);
 n = 0;
 for i=1:numel(D.data)
   datafolder = fullfile(D.data{i}, subfolder);
-  files{i} = spm_select('FPListRec',datafolder,['^' seg]);
+  if is_surf
+    files{i} = spm_select('FPListRec',datafolder,[seg '.*.gii']);
+  else
+    files{i} = spm_select('FPListRec',datafolder,['^' seg]);
+  end
   k = (n + 1):(n + size(files{i},1));
   n = n + size(files{i},1);
   
@@ -182,7 +197,11 @@ end
 if isfield(D,'mask_th')
   name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name '_mask' num2str(D.mask_th) D.release '.mat'];
 else
-  name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release '.mat'];
+  if is_surf
+    name = ['s' num2str(fwhm) '.' seg '_' D.name D.release '.mat'];
+  else
+    name = ['s' num2str(fwhm) seg '_' num2str(res) 'mm_' D.name D.release '.mat'];
+  end
 end
 
 data_struct = struct('data',{files},'resolution',res,'fwhm',fwhm,'mask',...
