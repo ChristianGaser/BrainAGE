@@ -161,7 +161,7 @@ if isfield(D,'n_fold') || isfield(D,'k_fold')
   fprintf('-------------------------------------------------------------\n');
   fprintf('For using k-fold validation you have to call BA_gpr_kfold_ui.\n');
   fprintf('-------------------------------------------------------------\n');
-  [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_kfold_ui(D)
+  [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_kfold_ui(D);
   return;
 end
 
@@ -515,7 +515,14 @@ for i = 1:numel(D.res_array)
             end
           end
         else
-          name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data D.relnumber];
+          if contains(D.seg{1}, 'mesh')
+            name = [D.smooth '.' D.seg{1} '_' D.data D.relnumber];
+          else
+            name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data D.relnumber];
+          end
+          if strcmp(name(1),'.')
+            name = name(2:end);
+          end
           if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
           load(name);
         end
@@ -550,14 +557,28 @@ for i = 1:numel(D.res_array)
             ind_plus = [0 ind_plus length(D.data)+1];
             n_train = numel(ind_plus)-1;
             for m = 1:n_train
-              name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber];
+              if contains(D.seg{l}, 'mesh')
+                name = [D.smooth D.seg{l} '_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber];
+              else
+                name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber];
+              end
+              if strcmp(name(1),'.')
+                name = name(2:end);
+              end
               if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
               load(name);
               Y0    = [Y0; single(Y)]; clear Y
             end
             D.Y_test = [D.Y_test Y0]; clear Y0
           else
-            name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data D.relnumber];
+            if contains(D.seg{l}, 'mesh')
+              name = [D.smooth D.seg{l} '_' D.data D.relnumber];
+            else
+              name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data D.relnumber];
+            end
+            if strcmp(name(1),'.')
+              name = name(2:end);
+            end
             if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
             load(name);
             D.Y_test = [D.Y_test single(Y)]; clear Y
