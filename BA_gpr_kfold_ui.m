@@ -1,5 +1,5 @@
 function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_kfold_ui(D)
-% [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D] = BA_gpr_kfold_ui(D)
+% [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_kfold_ui(D)
 % User interface for BrainAGE estimation in BA_gpr.m
 %
 % D.data            - test sample for BrainAGE estimation
@@ -139,7 +139,7 @@ if ~isfield(D,'ensemble')
   D.ensemble = 5;
 end
 
-if D.ensemble < 0 && ~exist('fmincon')
+if D.ensemble < 0 & exist('fmincon')
   fprintf('In order to use non-linear optimization you need the Optimization Toolbox.\n');
   return
 end
@@ -232,6 +232,10 @@ if iscell(D.data)
   D.data = char(D.data);
 end
 
+if ~isfield(D,'train_array')
+  D.train_array = {D.data};
+end
+
 % consider old syntax and name
 if isfield(D,'n_fold') && ~isfield(D,'k_fold')
   D.k_fold = D.n_fold;
@@ -314,10 +318,19 @@ if ~isfield(D,'n_data')
     age = age0;
     D.n_data = numel(age);
   else
-    load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber],'age');
+    if contains(seg_array, 'mesh')
+      name = [D.smooth_array{1} '.' seg_array '_' D.data D.relnumber];
+    else
+      name = [D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber];
+    end
+    if strcmp(name(1),'.')
+      name = name(2:end);
+    end
+    load(name,'age')
+
     D.n_data = numel(age);
 
-    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1)
+    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
       D.comcat = ones(size(age));
     end
   end
@@ -516,13 +529,22 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       age_all       = [age_all; age(ind_test)];
       ind_all       = [ind_all ind_test];
 
-      % prepare BA_gpr_kfold_ui parameters
+      % prepare BA_gpr_ui parameters
       D.ind_groups  = {ind_test};
       D.ind_adjust  = ind_test;
       D.ind_train   = ind_train;
 
-      % call nested loop
-      [BA_fold_all, ~, ~, D] = BA_gpr_kfold_ui(D);
+      % call BA_gpr_ui for this fold
+      % remove k_fold to prevent BA_gpr_ui from redirecting back to BA_gpr_kfold_ui
+      D_fold = D;
+      if isfield(D_fold, 'k_fold'), D_fold = rmfield(D_fold, 'k_fold'); end
+      if isfield(D_fold, 'n_fold'), D_fold = rmfield(D_fold, 'n_fold'); end
+      % use scalar ensemble for per-fold computation (actual ensemble is applied after k-fold)
+      if isfield(D_fold, 'ensemble') && numel(D_fold.ensemble) > 1
+        D_fold.ensemble = 5;
+      end
+      [~, ~, BA_fold_all, D_fold] = BA_gpr_ui(D_fold);
+      D.n_regions = D_fold.n_regions;
 
       if j == 1 && rep == 1
         BA_all = zeros(D.n_data,D.k_fold,D.k_fold_reps,D.n_regions,size(BA_fold_all,2)/D.n_regions);
