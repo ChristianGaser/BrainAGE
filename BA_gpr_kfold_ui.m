@@ -690,6 +690,38 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
     BrainAGE_all = BA_all;
   end
   
+  % show spiderplot for regional BrainAGE in k-fold mode
+  if isfield(D,'parcellation') && D.parcellation && D.n_regions > 1 ...
+      && isfield(D,'spiderplot') && isfield(D,'ind_groups') && isfield(D,'name_groups')
+    n_groups = numel(D.ind_groups);
+    if sum(isnan(BA_unsorted_weighted(:))) == 0
+      if isfield(D,'groupcolor')
+        groupcolor = D.groupcolor;
+      else
+        groupcolor = cat_io_colormaps('nejm',n_groups);
+      end
+
+      % For surfaces set subcortical structures and cerebellum to NaN
+      if numel(MAE_weighted) == 8
+        MAE_weighted = [MAE_weighted(1:4) NaN MAE_weighted(5:8) NaN];
+      end
+
+      f = figure(24);
+      set(f, 'Position',[10 10 900 800])
+      if isfield(D.spiderplot,'range')
+        BA_spider_plot(MAE_weighted, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
+      else
+        BA_spider_plot(MAE_weighted, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f);
+      end
+      if strcmpi(D.spiderplot.func,'median')
+        set(f,'Name','Weighted MAE','MenuBar','none');
+      elseif strcmpi(D.spiderplot.func,'mean')
+        set(f,'Name','Weighted MAE','MenuBar','none');
+      end
+      set(gca,'FontSize',20);
+    end
+  end
+  
   return
 end
 
