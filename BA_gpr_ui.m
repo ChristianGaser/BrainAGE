@@ -291,6 +291,8 @@ end
 region_names = {'R Frontal','R Parietal','R Occipital','R Temporal','R Subcortical/Cerebellum',...
          'L Frontal','L Parietal','L Occipital','L Temporal','L Subcortical/Cerebellum'};
 
+region_names_surf = {'R Frontal','R Parietal','R Occipital','R Temporal',...
+         'L Frontal','L Parietal','L Occipital','L Temporal'};
 
 ensemble_str = {'Majority Voting (model with lowest MAE)',...
                 'Weighted GLM Average (GLM for weighting models to minimize MAE)',...
@@ -619,18 +621,34 @@ for i = 1:numel(D.res_array)
         
         % add spatial resolution to atlas name
         if isfield(D,'parcellation') && D.parcellation
-          atlas_name = ['Brain_Lobes_' D.res 'mm.mat'];
-          
-          load(atlas_name)
-          if ~exist('atlas','var')
-            error('Atlas must contain atlas as variable');
+          is_surf = contains(seg,'mesh');
+          if is_surf
+            lh_atlas = 'lh.Brain_Lobes.annot';
+            [vertices, lh_label, ct] = cat_io_FreeSurfer('read_annotation',lh_atlas);
+            rh_atlas = 'rh.Brain_Lobes.annot';
+            [vertices, rh_label, ct] = cat_io_FreeSurfer('read_annotation',rh_atlas);
+            atlas = [5*rh_label; lh_label];
+            regions = unique(atlas(atlas >= 50));
+            regions(regions==200)  = [];
+            regions(regions==1000) = [];
+          else
+            atlas_name = ['Brain_Lobes_' D.res 'mm.mat'];          
+            load(atlas_name)
+            
+            if ~exist('atlas','var')
+              error('Atlas must contain atlas as variable');
+            end
+            regions = unique(atlas(atlas > 0));
           end
           
-          regions = unique(atlas(atlas > 0));
           D.n_regions = numel(regions);
           BrainAGE = [];
           for r = 1:D.n_regions
-            D.mask = atlas == regions(r);
+            if is_surf
+              D.mask = atlas(ind) == regions(r);
+            else
+              D.mask = atlas == regions(r);
+            end
             [tmp, ~, D] = BA_gpr(D);
             BrainAGE = [BrainAGE tmp];
           end
@@ -853,7 +871,11 @@ for i = 1:numel(D.res_array)
               end
                 
               if D.n_regions > 1
-                region_str = region_names{r};
+                if is_surf
+                  region_str = region_names_surf{r};
+                else
+                  region_str = region_names{r};
+                end
               else
                 region_str = '';
               end
@@ -1058,7 +1080,11 @@ if multiple_BA
         end
       
         if D.n_regions > 1
-          region_str = region_names{r};
+          if is_surf
+            region_str = region_names_surf{r};
+          else
+            region_str = region_names{r};
+          end
         else
           region_str = '';
         end
@@ -1137,7 +1163,11 @@ if multiple_BA
   if D.n_regions > 1, fprintf('\n'); end
   for r = 1:D.n_regions
     if D.n_regions > 1
-      fprintf('Region: %s\n',region_names{r});
+      if is_surf
+        fprintf('Region: %s\n',region_names_surf{r});
+      else
+        fprintf('Region: %s\n',region_names{r});
+      end
     else
       fprintf('\n'); 
     end
@@ -1209,7 +1239,7 @@ end
 
 % only estimates weights if BA is given from different models
 if size(BA,2) == 1
-  BA_weighted = BA;
+  BA_weighted = squeeze(BA);
   if isfield(D,'define_cov')
     PredictedAge_weighted = BA_weighted;
   else
@@ -1254,15 +1284,16 @@ end
 switch ensemble_method
 case 0   % use model with lowest MAE
   
-  BA_ind = BA_corrected(D.ind_adjust,:,:);
-  [~, mn_ind] = min(mean(abs(BA_ind)));
+  BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
+  for r = 1:n_regions
+    BA_ind = BA_corrected(D.ind_adjust,:,r);
+    [~, mn_ind] = min(mean(abs(BA_ind)));
   
-  fprintf('\nModel with lowest MAE is ');
-  fprintf('%d ',mn_ind);
+    fprintf('\nModel with lowest MAE for region %d is %d', r, mn_ind);
+  
+    BA_weighted(:,r) = PredictedAge_corrected(:,mn_ind,r) - age;
+  end
   fprintf('\n');
-  
-  weighted_PredictedAge = PredictedAge_corrected(:,mn_ind);
-  BA_weighted = weighted_PredictedAge - age;
 
 case 1   % use GLM estimation to minimize MAE
   
@@ -1625,7 +1656,7 @@ for i = 1:max(site_adjust)
   end
 end
 
-avg_BrainAGE = mean(BrainAGE(D.ind_adjust,:));
+avg_BrainAGE = mean(BrainAGE(D.ind_adjust,:,:), 1);
 BrainAGE = BrainAGE - avg_BrainAGE;
 PredictedAge = PredictedAge - avg_BrainAGE;
 
