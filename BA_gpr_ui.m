@@ -284,7 +284,7 @@ if iscell(D.data)
 end
 
 % if comcat is defined and set to 0 then remove this field
-if isfield(D,'comcat') && numel(D.comcat) == 1 &&  D.comcat == 0
+if isfield(D,'comcat') && isscalar(D.comcat) &&  D.comcat == 0
   D = rmfield(D,'comcat');
 end
 
@@ -293,14 +293,6 @@ region_names = {'R Frontal','R Parietal','R Occipital','R Temporal','R Subcortic
 
 region_names_surf = {'R Frontal','R Parietal','R Occipital','R Temporal',...
          'L Frontal','L Parietal','L Occipital','L Temporal'};
-
-ensemble_str = {'Majority Voting (model with lowest MAE)',...
-                'Weighted GLM Average (GLM for weighting models to minimize MAE)',...
-                'Average of all models',...
-                'GLM for weighting all models to maximize variance w.r.t. contrast vector',...
-                'Stacking: GPR for combining models',...
-                'Weighted Average: (average models with weighting w.r.t. squared MAE)',...
-                'GLM for weighting tissue models (i.e. GM/WM) to maximize variance w.r.t. contrast vector'};
 
 if isfield(D,'define_cov')
   if ~isempty(strfind(D.data,'+'))
@@ -412,7 +404,7 @@ fprintf('PCA:           \t%d (method: %s)\n',D.PCA,D.PCA_method);
 fprintf('Trend method:  \t%d\n',D.trend_method);
 fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
 fprintf('--------------------------------------------------------------\n');
-if isfield(D,'parcellation') & D.parcellation
+if isfield(D,'parcellation') && D.parcellation
   fprintf('Estimate local BrainAGE with parcellation into lobes.\n');
 end
 
@@ -624,11 +616,19 @@ for i = 1:numel(D.res_array)
           is_surf = contains(seg,'mesh');
           if is_surf
             lh_atlas = 'lh.Brain_Lobes.annot';
-            [vertices, lh_label, ct] = cat_io_FreeSurfer('read_annotation',lh_atlas);
+            [~, lh_label, ~] = cat_io_FreeSurfer('read_annotation',lh_atlas);
             rh_atlas = 'rh.Brain_Lobes.annot';
-            [vertices, rh_label, ct] = cat_io_FreeSurfer('read_annotation',rh_atlas);
+            [~, rh_label, ~] = cat_io_FreeSurfer('read_annotation',rh_atlas);
+
+            % since the atlas regions are equal and go up to 200 we have to
+            % multiply rh with 5
             atlas = [5*rh_label; lh_label];
+
+            % lobes have higher numbers and start with 50
             regions = unique(atlas(atlas >= 50));
+
+            % subcortical regions and cerebellum have to be removed (200
+            % and 200*5)
             regions(regions==200)  = [];
             regions(regions==1000) = [];
           else
@@ -645,6 +645,7 @@ for i = 1:numel(D.res_array)
           BrainAGE = [];
           for r = 1:D.n_regions
             if is_surf
+              % for surface we have to use areas that are defined by ind
               D.mask = atlas(ind) == regions(r);
             else
               D.mask = atlas == regions(r);
@@ -865,7 +866,7 @@ for i = 1:numel(D.res_array)
                   if o == p
                     P(o,p) = 0.5;
                   else
-                    [H,P(o,p)] = BA_ttest2(BrainAGE(D.ind_groups{o},r),BrainAGE(D.ind_groups{p},r),0.05,'left');
+                    [~,P(o,p)] = BA_ttest2(BrainAGE(D.ind_groups{o},r),BrainAGE(D.ind_groups{p},r),0.05,'left');
                   end
                 end
               end
@@ -1003,7 +1004,7 @@ if multiple_BA
     figure(22)
     clf
     hold on 
-    [p,S] = polyfit(D.age_test(D.ind_adjust),D.age_test(D.ind_adjust)+BA_unsorted_weighted(D.ind_adjust),1);
+    [p,~] = polyfit(D.age_test(D.ind_adjust),D.age_test(D.ind_adjust)+BA_unsorted_weighted(D.ind_adjust),1);
     yfit = polyval(p,[0.9*min(D.age_test(D.ind_adjust)) 1.1*max(D.age_test(D.ind_adjust))]);
   
     for i = 1:n_groups
@@ -1075,7 +1076,7 @@ if multiple_BA
         P = zeros(n_groups,n_groups);
         for o = 1:n_groups
           for p = 1:n_groups
-            [H,P(o,p)] = BA_ttest2(BA_unsorted_weighted(D.ind_groups{o},r),BA_unsorted_weighted(D.ind_groups{p},r),0.05,'left');
+            [~,P(o,p)] = BA_ttest2(BA_unsorted_weighted(D.ind_groups{o},r),BA_unsorted_weighted(D.ind_groups{p},r),0.05,'left');
           end
         end
       
@@ -1111,7 +1112,7 @@ if multiple_BA
           fprintf('\n');
         end
       
-        if ~isempty(find(P<=0.05))
+        if ~isempty(find(P<=0.05, 1))
           fprintf('****************************\n');
           fprintf('Significant result found\n');
           fprintf('****************************\n\n');
@@ -1690,7 +1691,7 @@ C = [
 C = reshape(sscanf(C(:,2:end)','%2x'),3,[])./255;
 C = C';
 
-function Beta = nonlin_optim(Y, X);
+function Beta = nonlin_optim(Y, X)
 % Use non-linear optimization to solve the equivalent of pinv(Y)*X, but with the
 % constrain that weights (betas) should be positive and in the range 0.001..0.999
 % Requirement: Optimization Toolbox
