@@ -135,7 +135,7 @@ if ~isfield(D,'ensemble')
   D.ensemble = 5;
 end
 
-if D.ensemble < 0 & exist('fmincon')
+if D.ensemble < 0 && exist('fmincon')
   fprintf('In order to use non-linear optimization you need the Optimization Toolbox.\n');
   return
 end
@@ -234,7 +234,7 @@ if isfield(D,'n_fold') && ~isfield(D,'k_fold')
 end
 
 % if comcat is defined and set to 0 then remove this field
-if isfield(D,'comcat') && numel(D.comcat) == 1 &&  D.comcat == 0
+if isfield(D,'comcat') && isscalar(D.comcat) &&  D.comcat == 0
   D = rmfield(D,'comcat');
 end
 
@@ -287,7 +287,7 @@ if ~isfield(D,'n_data')
     % D.comcat can be also just defined as single value that indicates
     % that the comcat-vector that defines the different samples will be
     % automatically build
-    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+    if isfield(D,'comcat') && isscalar(D.comcat) && D.comcat == 1
       D_comcat = [];
     end
   
@@ -298,12 +298,12 @@ if ~isfield(D,'n_data')
     for l = 1:n_train
       load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
       age0 = [age0; age];
-      if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+      if isfield(D,'comcat') && isscalar(D.comcat) && D.comcat == 1
         D_comcat = [D_comcat; l*ones(size(age))];
       end
     end
 
-    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+    if isfield(D,'comcat') && isscalar(D.comcat) && D.comcat == 1
       D.comcat = D_comcat;
     end
     
@@ -322,7 +322,7 @@ if ~isfield(D,'n_data')
 
     D.n_data = numel(age);
 
-    if isfield(D,'comcat') && numel(D.comcat) == 1 && D.comcat == 1
+    if isfield(D,'comcat') && isscalar(D.comcat) && D.comcat == 1
       D.comcat = ones(size(age));
     end
   end
@@ -1161,7 +1161,7 @@ C = [
 C = reshape(sscanf(C(:,2:end)','%2x'),3,[])./255;
 C = C';
 
-function Beta = nonlin_optim(Y, X);
+function Beta = nonlin_optim(Y, X)
 % Use non-linear optimization to solve the equivalent of pinv(Y)*X, but with the
 % constrain that weights (betas) should be positive and in the range 0.001..0.999
 % Requirement: Optimization Toolbox
