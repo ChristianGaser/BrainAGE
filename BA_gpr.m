@@ -162,7 +162,7 @@ end
 Y_test = D.Y_test;
 
 % don't load training sample if test sample is the same (e.g. for k-fold validation)
-if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
+if isscalar(D.train_array) && strcmp(D.train_array{1},D.data)
   load_training_sample = false;
   Y_train    = Y_test;
   age_train  = D.age_test;
@@ -227,7 +227,7 @@ for i = 1:n_training_samples
 end
 
 if isfield(D,'mask')
-  [m,n] = size(Y_train);
+  [~,n] = size(Y_train);
   if n ~= numel(D.mask)
     error('Size mismatch for mask. There are %d entries necessary',n);
   end
@@ -307,9 +307,9 @@ if ~isinf(D.threshold_std)
   end
 
   % sort files
-  [mean_cov_sorted, ind_sorted] = sort(mean_cov,'descend');
+  [mean_cov_sorted, ~] = sort(mean_cov,'descend');
   threshold_cov = mean(mean_cov) - D.threshold_std*std(mean_cov);
-  n_thresholded = min(find(mean_cov_sorted < threshold_cov));
+  n_thresholded = find(mean_cov_sorted < threshold_cov, 1 );
 
   ind_removed = find(mean_cov < threshold_cov);
   if D.verbose > 1, fprintf('%d subjects removed because their mean covariance was deviating more than %g standard deviation from mean.\n',length(ind_removed),D.threshold_std); end
@@ -328,7 +328,7 @@ if isfield(D,'eqdist') && isfield(D.eqdist,'tol')
   % check whether we already have to estimate assignement or we have
   % multiple training sample
   if ~isfield(D.eqdist,'sel') || numel(D.train_array) > 1
-    if numel(D.train_array) == 1 && strcmp(D.train_array{1},D.data)
+    if isscalar(D.train_array) && strcmp(D.train_array{1},D.data)
       fprintf('Use of eqdist flag is not allowed for k-fold validation\n');
       return
     end
@@ -347,7 +347,7 @@ if isfield(D,'eqdist') && isfield(D.eqdist,'tol')
 
     % find assignement using Hungarian method
     fprintf('Estimate assignement to match distribution of train data to test data\n');
-    [sample_sel, sel] = BA_equalize_distribution(sample_ref, sample_src, D.eqdist);
+    [~, sel] = BA_equalize_distribution(sample_ref, sample_src, D.eqdist);
     fprintf('Selected %d of %d data sets for training after age/sex equalization.\n',numel(sel),numel(age_train));
 
     % save selection to skip time consuming assignement for next runs
