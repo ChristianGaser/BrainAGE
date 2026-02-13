@@ -31,6 +31,7 @@ end
 ROInames = {'R Frontal','R Parietal','R Occipital','R Temporal',{'R Subcortical/','Cerebellum'},...
             'L Frontal','L Parietal','L Occipital','L Temporal',{'L Subcortical/','Cerebellum'}};
 
+
 % change order so that left and right is correctly displayed
 ind = circshift([1 4 2 3 5 10 8 7 9 6], -2);
 
@@ -46,11 +47,7 @@ if min(data) > -1e-15
 end
 
 % change order
-if size(data,1) == 1
-  P = data(ind);
-else
-  P = data(:,ind);
-end
+P = data(ind);
 
 n_groups  = size(P,1);
 n_regions = size(P,2);
@@ -121,6 +118,7 @@ end
 markers = markers(1:n_groups);
 markers = mat2cell(markers, 1, ones(1,numel(markers))); %#ok<MMTC> 
 
+warning off
 spider_plot(P,...
     'AxesLabels', ROInames(ind),...
     'AxesLimits', repmat([range(1); range(2)],1,n_regions),...
@@ -436,7 +434,7 @@ end
 % Check if axes precision is numeric
 if isnumeric(axes_precision)
     % Check is length is one
-    if length(axes_precision) == 1
+    if isscalar(axes_precision)
         % Repeat array to number of data points
         axes_precision = repmat(axes_precision, num_data_points, 1);
     elseif length(axes_precision) ~= num_data_points
@@ -649,7 +647,7 @@ if ischar(axes_shaded_color)
     axes_shaded_color = repmat(axes_shaded_color, length(axes_shaded_limits), 1);
 elseif iscellstr(axes_shaded_color)
     % Check is length is one
-    if length(axes_shaded_color) == 1
+    if isscalar(axes_shaded_color)
         % Repeat cell to number of axes shaded limits groups
         axes_shaded_color = repmat(axes_shaded_color, length(axes_shaded_limits), 1);
     end
@@ -663,7 +661,7 @@ end
 % Check if axes shaded transparency is numeric
 if isnumeric(axes_shaded_transparency)
     % Check is length is one
-    if length(axes_shaded_transparency) == 1
+    if isscalar(axes_shaded_transparency)
         % Repeat array to number of axes shaded limits groups
         axes_shaded_transparency = repmat(axes_shaded_transparency, length(axes_shaded_limits), 1);
     elseif length(axes_shaded_transparency) ~= length(axes_shaded_limits)
@@ -687,7 +685,7 @@ if ischar(axes_interpreter)
     axes_interpreter = repmat(axes_interpreter, length(axes_labels), 1);
 elseif iscellstr(axes_interpreter)
     % Check is length is one
-    if length(axes_interpreter) == 1
+    if isscalar(axes_interpreter)
         % Repeat cell to number of data groups
         axes_interpreter = repmat(axes_interpreter, length(axes_labels), 1);
     elseif length(axes_interpreter) ~= length(axes_labels)
@@ -706,7 +704,7 @@ if ischar(axes_tick_interpreter)
     axes_tick_interpreter = repmat(axes_tick_interpreter, length(axes_labels), 1);
 elseif iscellstr(axes_tick_interpreter)
     % Check is length is one
-    if length(axes_tick_interpreter) == 1
+    if isscalar(axes_tick_interpreter)
         % Repeat cell to number of data groups
         axes_tick_interpreter = repmat(axes_tick_interpreter, length(axes_labels), 1);
     elseif length(axes_tick_interpreter) ~= length(axes_labels)
@@ -731,7 +729,7 @@ end
 % Check if axes scaling is a cell
 if iscell(axes_scaling)
     % Check is length is one
-    if length(axes_scaling) == 1
+    if isscalar(axes_scaling)
         % Repeat array to number of data groups
         axes_scaling = repmat(axes_scaling, num_data_points, 1);
     elseif length(axes_scaling) ~= num_data_points
@@ -751,7 +749,7 @@ if ischar(line_style)
     line_style = repmat(line_style, num_data_groups, 1);
 elseif iscellstr(line_style)
     % Check is length is one
-    if length(line_style) == 1
+    if isscalar(line_style)
         % Repeat cell to number of data groups
         line_style = repmat(line_style, num_data_groups, 1);
     elseif length(line_style) ~= num_data_groups
@@ -764,7 +762,7 @@ end
 % Check if line width is numeric
 if isnumeric(line_width)
     % Check is length is one
-    if length(line_width) == 1
+    if isscalar(line_width)
         % Repeat array to number of data groups
         line_width = repmat(line_width, num_data_groups, 1);
     elseif length(line_width) ~= num_data_groups
@@ -783,7 +781,7 @@ if ischar(marker_type)
     marker_type = repmat(marker_type, num_data_groups, 1);
 elseif iscellstr(marker_type)
     % Check is length is one
-    if length(marker_type) == 1
+    if isscalar(marker_type)
         % Repeat cell to number of data groups
         marker_type = repmat(marker_type, num_data_groups, 1);
     elseif length(marker_type) ~= num_data_groups
@@ -795,7 +793,7 @@ end
 
 % Check if line width is numeric
 if isnumeric(marker_size)
-    if length(marker_size) == 1
+    if isscalar(marker_size)
         % Repeat array to number of data groups
         marker_size = repmat(marker_size, num_data_groups, 1);
     elseif length(marker_size) ~= num_data_groups
@@ -808,7 +806,7 @@ end
 % Check if axes direction is a cell
 if iscell(axes_direction)
     % Check is length is one
-    if length(axes_direction) == 1
+    if isscalar(axes_direction)
         % Repeat array to number of data points
         axes_direction = repmat(axes_direction, num_data_points, 1);
     elseif length(axes_direction) ~= num_data_points
@@ -822,7 +820,7 @@ end
 % Check if fill option is a cell
 if iscell(fill_option)
     % Check is length is one
-    if length(fill_option) == 1
+    if isscalar(fill_option)
         % Repeat array to number of data groups
         fill_option = repmat(fill_option, num_data_groups, 1);
     elseif length(fill_option) ~= num_data_groups
@@ -847,7 +845,7 @@ end
 % Check if fill transparency is numeric
 if isnumeric(fill_transparency)
     % Check is length is one
-    if length(fill_transparency) == 1
+    if isscalar(fill_transparency)
         % Repeat array to number of data groups
         fill_transparency = repmat(fill_transparency, num_data_groups, 1);
     elseif length(fill_transparency) ~= num_data_groups
@@ -860,7 +858,7 @@ end
 % Check if line transparency is numeric
 if isnumeric(line_transparency)
     % Check is length is one
-    if length(line_transparency) == 1
+    if isscalar(line_transparency)
         % Repeat array to number of data groups
         line_transparency = repmat(line_transparency, num_data_groups, 1);
     elseif length(line_transparency) ~= num_data_groups
@@ -873,7 +871,7 @@ end
 % Check if marker transparency is numeric
 if isnumeric(marker_transparency)
     % Check is length is one
-    if length(marker_transparency) == 1
+    if isscalar(marker_transparency)
         % Repeat array to number of data groups
         marker_transparency = repmat(marker_transparency, num_data_groups, 1);
     elseif length(marker_transparency) ~= num_data_groups
@@ -904,7 +902,7 @@ if ischar(axes_tick_format)
     axes_tick_format = repmat(axes_tick_format, num_data_points, 1);
 elseif iscellstr(axes_tick_format)
     % Check is length is one
-    if length(axes_tick_format) == 1
+    if isscalar(axes_tick_format)
         % Repeat cell to number of axes shaded limits groups
         axes_tick_format = repmat(axes_tick_format, num_data_points, 1);
     end
@@ -1279,7 +1277,7 @@ for ii = 1:theta_end_index
             text_str = axes_tick_labels{jj-axes_offset};
         end
 
-        t = text(ax, x_axes(jj), y_axes(jj), text_str,...
+        text(ax, x_axes(jj), y_axes(jj), text_str,...
             'Units', 'Data',...
             'Color', axes_font_color,...
             'FontName', axes_font,...
