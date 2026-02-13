@@ -57,10 +57,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_kfold_ui(D
 %                     0 - suppress long outputs
 %                     1 - print meaningful outputs (default)
 %                     2 - print long outputs
-% D.parcellation    - use parcellation into lobes to additionally estimate local BrainAGE values:
-%                     https://figshare.com/articles/dataset/Brain_Lobes_Atlas/971058
-%                     0 - estimate global BrainAGE (default)
-%                     1 - estimate local BrainAGE for different lobes for both hemispheres
 % D.threshold_std   - all data with a standard deviation > D.threshold_std of mean covariance are excluded (after covarying out effects of age)
 %                     meaningful values are 1,2 or Inf
 % D.corr            - additionally define parameter that can be correlated to BrainAGE if only one group is given
@@ -172,10 +168,6 @@ end
 
 if ~isfield(D,'PCA_method')
   D.PCA_method = 'svd';
-end
-
-if ~isfield(D,'parcellation')
-  D.parcellation = 0;
 end
 
 if D.trend_method > 1 && D.trend_degree > 1
@@ -406,9 +398,6 @@ if ~isfield(D,'run_kfold')
   fprintf('Trend method:  \t%d\n',D.trend_method);
   fprintf('Age-Range:     \t%g-%g\n',D.age_range(1),D.age_range(2));
   fprintf('--------------------------------------------------------------\n');
-  if isfield(D,'parcellation') & D.parcellation
-    fprintf('Estimate local BrainAGE with parcellation into lobes.\n');
-  end
 end
 
 % run k-fold validation if no data field is given or validation with k_fold is defined
@@ -579,6 +568,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   end
   
   D.ind_adjust = ind_adjust; % rescue original ind_adjust
+  D.age_test = age; % set age_test so it is available after return
   
   % go through different ensembles if defined
   D0 = D;
@@ -720,7 +710,7 @@ end
 
 % only estimates weights if BA is given from different models
 if size(BA,2) == 1
-  BA_weighted = BA;
+  BA_weighted = squeeze(BA);
   if isfield(D,'define_cov')
     PredictedAge_weighted = BA_weighted;
   else
@@ -765,15 +755,16 @@ end
 switch ensemble_method
 case 0   % use model with lowest MAE
   
-  BA_ind = BA_corrected(D.ind_adjust,:,:);
-  [~, mn_ind] = min(mean(abs(BA_ind)));
+  BA_weighted = zeros(size(PredictedAge_corrected,1),D.n_regions);
+  for r = 1:n_regions
+    BA_ind = BA_corrected(D.ind_adjust,:,r);
+    [~, mn_ind] = min(mean(abs(BA_ind)));
   
-  fprintf('\nModel with lowest MAE is ');
-  fprintf('%d ',mn_ind);
+    fprintf('\nModel with lowest MAE for region %d is %d', r, mn_ind);
+  
+    BA_weighted(:,r) = PredictedAge_corrected(:,mn_ind,r) - age;
+  end
   fprintf('\n');
-  
-  weighted_PredictedAge = PredictedAge_corrected(:,mn_ind);
-  BA_weighted = weighted_PredictedAge - age;
 
 case 1   % use GLM estimation to minimize MAE
   
@@ -1136,14 +1127,14 @@ for i = 1:max(site_adjust)
   end
 end
 
-avg_BrainAGE = mean(BrainAGE(D.ind_adjust,:));
+avg_BrainAGE = mean(BrainAGE(D.ind_adjust,:,:), 1);
 BrainAGE = BrainAGE - avg_BrainAGE;
 PredictedAge = PredictedAge - avg_BrainAGE;
 
 MAE = mean(abs(BrainAGE));
 
 if MAE0/MAE > 4
-  warning('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n');
+  fprintf('Warning: Large discrepancy between MAE before and after correction which points to a too narrow age range of training data!\n');
 end
 
 %-------------------------------------------------------------------------------

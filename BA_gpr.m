@@ -381,6 +381,7 @@ D.male_train = male_train;
 % estimate range using training data only and scale to 0..1
 mn = min(Y_train(:));
 mx = max(Y_train(:));
+
 Y_train  = (Y_train-mn)/(mx-mn);
 Y_test = (Y_test-mn)/(mx-mn);
 
