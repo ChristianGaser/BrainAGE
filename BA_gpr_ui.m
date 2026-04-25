@@ -334,6 +334,7 @@ if ~isfield(D,'n_data')
     
     for l = 1:n_train
       load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
+      age = double(age);
       age0 = [age0; age];
     end
     
@@ -341,6 +342,7 @@ if ~isfield(D,'n_data')
     D.n_data = numel(age);
   else
     load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber],'age');
+    age = double(age);
     D.n_data = numel(age);
   end
 end
@@ -488,7 +490,7 @@ for i = 1:numel(D.res_array)
             if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
             load(name);
             name0 = [name0 '+' name]; 
-            age0  = [age0; age]; 
+            age0  = [age0; double(age)]; 
             male0 = [male0; male]; 
             Y0    = [Y0; single(Y)]; clear Y
             site_adjust = [site_adjust; l*ones(size(age))];  
@@ -520,7 +522,12 @@ for i = 1:numel(D.res_array)
           if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
           load(name);
         end
-        
+  
+        % transpose Y if neccessary
+        if size(Y,1) ~= D.n_data && size(Y,2) == D.n_data
+          Y = Y';
+        end
+
         n_data = size(Y,1);
         if D.n_data ~= n_data
           fprintf('\n-----------------------------------------------------------------\n'); 
@@ -536,7 +543,7 @@ for i = 1:numel(D.res_array)
           male = ones(size(age));
         end
                 
-        D.age_test = age;
+        D.age_test = double(age);
 
         if exist('male','var')
           D.male_test = male;
@@ -941,7 +948,8 @@ if multiple_BA
 
   if isfield(D,'ensemble_method') && D.ensemble_method == 4, fprintf('GPR ensemble approach is only useful for k-fold validation.\n'); end
   BA_unsorted_weighted  = ensemble_models(BA_unsorted,D.age_test,D);
-    
+  
+  age = double(age);
   if D.verbose > 0 && D.trend_degree >= 0
     fprintf('\n===========================================================\n'); 
     str_trend = {'No age correction','Age correction using BA','Age correction using PredicatedAge (Cole)'};
