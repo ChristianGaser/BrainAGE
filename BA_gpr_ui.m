@@ -161,6 +161,9 @@ if isfield(D,'n_fold') || isfield(D,'k_fold')
   fprintf('-------------------------------------------------------------\n');
   fprintf('For using k-fold validation you have to call BA_gpr_kfold_ui.\n');
   fprintf('-------------------------------------------------------------\n');
+  if ~isfield(D,'data')
+    D.data = D.train_array;
+  end
   [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_kfold_ui(D);
   return;
 end
@@ -1001,7 +1004,7 @@ if multiple_BA
 
   % check correlation coefficient of unsorrected data that should be not tto low
   cc = corrcoef([BA_unsorted_weighted(D.ind_adjust)+age(D.ind_adjust) age(D.ind_adjust)]);
-  if cc(1,2) < 0.4
+  if cc(1,2) < 0.4 && D.trend_degree > 0
     spm('alert*','Correlation between predicted and chronological age (without age correction) is too low to be meaningful.');
     fprintf('\n********************************************************************\n'); 
     warning('Correlation between predicted and chronological age (without age correction) is too low to be meaningful: cc = %1.3f!',cc(1,2));
