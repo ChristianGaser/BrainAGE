@@ -336,7 +336,7 @@ if ~isfield(D,'n_data')
     n_train = numel(ind_plus)-1;
     
     for l = 1:n_train
-      load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
+      load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber,'.mat'],'age');
       age = double(age);
       age0 = [age0; age];
     end
@@ -344,7 +344,7 @@ if ~isfield(D,'n_data')
     age = age0;
     D.n_data = numel(age);
   else
-    load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber],'age');
+    load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber '.mat'],'age');
     age = double(age);
     D.n_data = numel(age);
   end
@@ -489,7 +489,7 @@ for i = 1:numel(D.res_array)
           ind_plus = [0 ind_plus length(D.data)+1];
           n_train = numel(ind_plus)-1;
           for l = 1:n_train
-            name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber];
+            name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber '.mat'];
             if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
             load(name);
             name0 = [name0 '+' name]; 
@@ -515,9 +515,9 @@ for i = 1:numel(D.res_array)
           end
         else
           if contains(D.seg{1}, 'mesh')
-            name = [D.smooth '.' D.seg{1} '_' D.data D.relnumber];
+            name = [D.smooth '.' D.seg{1} '_' D.data D.relnumber '.mat'];
           else
-            name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data D.relnumber];
+            name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data D.relnumber '.mat'];
           end
           if strcmp(name(1),'.')
             name = name(2:end);
@@ -562,9 +562,9 @@ for i = 1:numel(D.res_array)
             n_train = numel(ind_plus)-1;
             for m = 1:n_train
               if contains(D.seg{l}, 'mesh')
-                name = [D.smooth D.seg{l} '_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber];
+                name = [D.smooth D.seg{l} '_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber '.mat'];
               else
-                name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber];
+                name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data(ind_plus(m)+1:ind_plus(m+1)-1) D.relnumber '.mat'];
               end
               if strcmp(name(1),'.')
                 name = name(2:end);
@@ -576,9 +576,9 @@ for i = 1:numel(D.res_array)
             D.Y_test = [D.Y_test Y0]; clear Y0
           else
             if contains(D.seg{l}, 'mesh')
-              name = [D.smooth D.seg{l} '_' D.data D.relnumber];
+              name = [D.smooth D.seg{l} '_' D.data D.relnumber '.mat'];
             else
-              name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data D.relnumber];
+              name = [D.smooth D.seg{l} '_' D.res 'mm_' D.data D.relnumber '.mat'];
             end
             if strcmp(name(1),'.')
               name = name(2:end);
