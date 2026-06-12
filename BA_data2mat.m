@@ -191,7 +191,7 @@ if ~isempty(male)
 end
 
 if numel(age) ~= n
-  fprintf('Only %d of %d values for age found.\n',numel(age),n);
+  fprintf('Only %d of %d values for age found.\n',n,numel(age));
 end
 
 if isfield(D,'mask_th')
