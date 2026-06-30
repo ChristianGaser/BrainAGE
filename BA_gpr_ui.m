@@ -1165,80 +1165,84 @@ else
   end
 end
 
-% show plot for multiple values if defined
+% show boxplot or spiderplot
 if multiple_BA
-      
-  ind_groups = [];
-  for o = 1:n_groups
-    ind_groups = [ind_groups; D.ind_groups{o}];
-    data_cell{o} = BA_unsorted_weighted(D.ind_groups{o},:);
-    avg_BrainAGE(o,:) = mean(BA_unsorted_weighted(D.ind_groups{o},:));
-    age_test(o,1) = mean(D.age_test(D.ind_groups{o}));
-    age_test(o,2) = std(D.age_test(D.ind_groups{o}));
-    median_BrainAGE(o,:) = median(BA_unsorted_weighted(D.ind_groups{o},:));
-    SD_BrainAGE(o,:) = std(BA_unsorted_weighted(D.ind_groups{o},:));
-  end
-    
-  % print BrainAGE of groups
-  fprintf('%20s\t','Group');
-  for o = 1:n_groups
-    fprintf('%20s\t',deblank(D.name_groups(o,:)));
-  end
-
-  if D.n_regions > 1, fprintf('\n'); end
-  for r = 1:D.n_regions
-    if D.n_regions > 1
-      if is_surf
-        fprintf('Region: %s\n',region_names_surf{r});
-      else
-        fprintf('Region: %s\n',region_names{r});
-      end
-    else
-      fprintf('\n'); 
-    end
-    fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o,r)); end
-    fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o,r)); end
-    fprintf('\n'); fprintf('%20s\t','SD');     for o = 1:n_groups, fprintf('%20.3f\t',SD_BrainAGE(o,r)); end
-    fprintf('\n');
-  end
-
-  if D.verbose && sum(isnan(BA_unsorted_weighted(:))) == 0
-    f = figure(24);
-    set(f, 'Position',[10 10 900 800])
-    
-    % show spiderplot for regional BrainAGE
-    if D.parcellation
-        combined_BA = zeros(numel(data_cell),size(BA_unsorted_weighted,2));
-        for l = 1:numel(data_cell)
-            combined_BA(l,:) = feval(D.spiderplot.func,BA_unsorted_weighted(D.ind_groups{l},:));
-        end
-        if isfield(D,'spiderplot')
-          if isfield(D.spiderplot,'range')
-            BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
-          else
-            BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f);
-          end
-        end
-        if strcmpi(D.spiderplot.func,'median')
-          set(f,'Name','Median Weighted BrainAGE','MenuBar','none');
-        elseif strcmpi(D.spiderplot.func,'mean')
-          set(f,'Name','Mean Weighted BrainAGE','MenuBar','none');
-        end
-    else % otherwise use boxplot
-        cat_plot_boxplot(data_cell,opt);
-        if style == 1
-          set(gca,'XTick',1:n_groups,'XTickLabel',D.name_groups);
-          ylabel('BrainAGE [years]');
-        else
-          set(gca,'YTick',1:n_groups,'YTickLabel',D.name_groups(n_groups:-1:1,:));
-          xlabel('BrainAGE [years]');
-        end
-        set(f,'Name','Weighted BrainAGE','MenuBar','none');
-    end
-
-    set(gca,'FontSize',20);
-  end
+  data_plot = BA_unsorted_weighted;
+else
+  data_plot = BA_unsorted;
 end
+      
+ind_groups = [];
+for o = 1:n_groups
+  ind_groups = [ind_groups; D.ind_groups{o}];
+  data_cell{o} = data_plot(D.ind_groups{o},:);
+  avg_BrainAGE(o,:) = mean(data_plot(D.ind_groups{o},:));
+  age_test(o,1) = mean(D.age_test(D.ind_groups{o}));
+  age_test(o,2) = std(D.age_test(D.ind_groups{o}));
+  median_BrainAGE(o,:) = median(data_plot(D.ind_groups{o},:));
+  SD_BrainAGE(o,:) = std(data_plot(D.ind_groups{o},:));
+end
+  
+% print BrainAGE of groups
+fprintf('%20s\t','Group');
+for o = 1:n_groups
+  fprintf('%20s\t',deblank(D.name_groups(o,:)));
+end
+
+if D.n_regions > 1, fprintf('\n'); end
+for r = 1:D.n_regions
+  if D.n_regions > 1
+    if is_surf
+      fprintf('Region: %s\n',region_names_surf{r});
+    else
+      fprintf('Region: %s\n',region_names{r});
+    end
+  else
+    fprintf('\n'); 
+  end
+  fprintf('%20s\t','Mean');   for o = 1:n_groups, fprintf('%20.3f\t',avg_BrainAGE(o,r)); end
+  fprintf('\n'); fprintf('%20s\t','Median'); for o = 1:n_groups, fprintf('%20.3f\t',median_BrainAGE(o,r)); end
+  fprintf('\n'); fprintf('%20s\t','SD');     for o = 1:n_groups, fprintf('%20.3f\t',SD_BrainAGE(o,r)); end
+  fprintf('\n');
+end
+
+if D.verbose && sum(isnan(data_plot(:))) == 0
+  f = figure(24);
+  set(f, 'Position',[10 10 900 800])
+  
+  % show spiderplot for regional BrainAGE
+  if D.parcellation
+      combined_BA = zeros(numel(data_cell),size(data_plot,2));
+      for l = 1:numel(data_cell)
+          combined_BA(l,:) = feval(D.spiderplot.func,data_plot(D.ind_groups{l},:));
+      end
+      if isfield(D,'spiderplot')
+        if isfield(D.spiderplot,'range')
+          BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
+        else
+          BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f);
+        end
+      end
+      if strcmpi(D.spiderplot.func,'median')
+        set(f,'Name','Median Weighted BrainAGE','MenuBar','none');
+      elseif strcmpi(D.spiderplot.func,'mean')
+        set(f,'Name','Mean Weighted BrainAGE','MenuBar','none');
+      end
+  else % otherwise use boxplot
+      cat_plot_boxplot(data_cell,opt);
+      if style == 1
+        set(gca,'XTick',1:n_groups,'XTickLabel',D.name_groups);
+        ylabel('BrainAGE [years]');
+      else
+        set(gca,'YTick',1:n_groups,'YTickLabel',D.name_groups(n_groups:-1:1,:));
+        xlabel('BrainAGE [years]');
+      end
+      set(f,'Name','Weighted BrainAGE','MenuBar','none');
+  end
+
+  set(gca,'FontSize',20);
+end
+
 
 if (D.age_range(1)-min(D.age_test)) > 2 || (max(D.age_test)-D.age_range(2)) > 2
   fprintf('\n********************************************************************\n'); 
