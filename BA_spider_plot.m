@@ -25,15 +25,8 @@ numvarargs = length(varargin);
 
 % Check for even number of name-value pair argments
 if mod(numvarargs, 2) == 1
-    error('Error: Please check name-value pair arguments');
+  error('Error: Please check name-value pair arguments');
 end
-
-ROInames = {'R Frontal','R Parietal','R Occipital','R Temporal',{'R Subcortical/','Cerebellum'},...
-            'L Frontal','L Parietal','L Occipital','L Temporal',{'L Subcortical/','Cerebellum'}};
-
-
-% change order so that left and right is correctly displayed
-ind = circshift([1 4 2 3 5 10 8 7 9 6], -2);
 
 % transpose if necessary
 if size(data,1) > size(data,2)
@@ -42,15 +35,29 @@ end
 
 % we have to round values that are quite close to zero because scaling will
 % be otherwise starting with negative values instead of zero 
-if min(data) > -1e-15
+if min(data(:)) > -1e-15
   data(data < 1e-5) = 0;
 end
 
-% change order
-P = data(ind);
+n_groups  = size(data,1);
+n_regions = size(data,2);
 
-n_groups  = size(P,1);
-n_regions = size(P,2);
+% change order so that left and right is correctly displayed
+if n_regions == 10
+  ind = circshift([1 4 2 3 5 10 8 7 9 6], -2);
+  ROInames = {'R Frontal','R Parietal','R Occipital','R Temporal',{'R Subcortical/','Cerebellum'},...
+              'L Frontal','L Parietal','L Occipital','L Temporal',{'L Subcortical/','Cerebellum'}};
+elseif n_regions == 8
+  ROInames = {'R Frontal','R Parietal','R Occipital','R Temporal',...
+              'L Frontal','L Parietal','L Occipital','L Temporal'};
+    % Match the 10-region orientation after removing bilateral subcortical/cerebellar regions.
+    ind = [5 1 4 2 3 7 6 8];
+else
+    error('Error: Only 8 or 10 regions are allowed.');
+end
+
+% change order
+P = data(:, ind);
 
 % Default arguments
 names       = [];
@@ -125,7 +132,6 @@ spider_plot(P,...
     'Color', colors,...
     'FillOption', {'on'},...
     'FillTransparency', 0.1,...
-    'AxesStart', 0,...
     'LabelFontSize', 24,...
     'AxesPrecision', 1,...
     'AxesInterval', axesinterval,...
@@ -266,7 +272,12 @@ error_positive = [];
 error_negative = [];
 axes_web_type = 'web';
 axes_tick_format = 'default';
-axes_start = pi/2;
+if num_data_points == 8
+    % Slightly rotate 8-region plots to match left/right layout used for 10 regions.
+    axes_start = 5*pi/8;
+else
+    axes_start = pi/2;
+end
 
 % Check if optional arguments were specified
 if numvarargs > 1

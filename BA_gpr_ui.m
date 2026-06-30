@@ -1214,7 +1214,7 @@ if multiple_BA
         end
         if isfield(D,'spiderplot')
           if isfield(D.spiderplot,'range')
-          BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
+            BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
           else
             BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f);
           end
