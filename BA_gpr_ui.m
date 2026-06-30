@@ -74,7 +74,8 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 %                     0 - Majority voting: use model with lowest MAE
 %                     1 - Weighted GLM average: use GLM estimation to estimate model weights to minimize MAE
 %                     2 - Average: use mean to weight different models
-%                     3 - GLM: use GLM estimation to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
+%                     3 - GLM: use GLM estimation to maximize variance to a group or a regression parameter with the constrain that 
+%                         weights (betas) should be positive and in the range 0.001..0.999. Optimization Toolbox is needed for that option.
 %                     5 - Weighted Average: (average models with weighting w.r.t. squared MAE) (default)
 %                     6 - GLM: use GLM estimation for different tissues (i.e. GM/WM) to maximize variance to a group or a regression parameter (EXPERIMENTAL!)
 %                         In contrast to ensemble model 3, we here only use the mean tissue values and not all models to estimate weights
@@ -188,7 +189,7 @@ if ~isfield(D,'ensemble')
   D.ensemble = 5;
 end
 
-if D.ensemble < 0 && ~exist('fmincon')
+if (D.ensemble == 3 || D.ensemble == 6) && ~exist('fmincon')
   fprintf('In order to use non-linear optimization you need the Optimization Toolbox.\n');
   return
 end
@@ -336,7 +337,11 @@ if ~isfield(D,'n_data')
     n_train = numel(ind_plus)-1;
     
     for l = 1:n_train
-      load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber,'.mat'],'age');
+      if contains(seg_array, 'mesh')
+        load([D.smooth_array{1} seg_array '_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber,'.mat'],'age');
+      else
+        load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber,'.mat'],'age');
+      end
       age = double(age);
       age0 = [age0; age];
     end
@@ -344,7 +349,11 @@ if ~isfield(D,'n_data')
     age = age0;
     D.n_data = numel(age);
   else
-    load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber '.mat'],'age');
+    if contains(seg_array, 'mesh')
+      load([D.smooth_array{1} seg_array '_' D.data D.relnumber '.mat'],'age');
+    else
+      load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data D.relnumber '.mat'],'age');
+    end
     age = double(age);
     D.n_data = numel(age);
   end
@@ -370,7 +379,7 @@ end
 
 % check whether contrast was defined for ensemble=3
 if isfield(D,'ensemble')
-  if (abs(D.ensemble(1)) == 3 || abs(D.ensemble(1)) == 6) && ~isfield(D,'contrast')
+  if (D.ensemble(1) == 3 || D.ensemble(1) == 6) && ~isfield(D,'contrast')
     error('D.contrast has to be defined.');
   end
 end
@@ -489,7 +498,11 @@ for i = 1:numel(D.res_array)
           ind_plus = [0 ind_plus length(D.data)+1];
           n_train = numel(ind_plus)-1;
           for l = 1:n_train
-            name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber '.mat'];
+            if contains(D.seg{1}, 'mesh')
+              name = [D.smooth D.seg{1} '_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber '.mat'];
+            else
+              name = [D.smooth D.seg{1} '_' D.res 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber '.mat'];
+            end
             if D.verbose > 1, fprintf('BA_gpr_ui: load %s\n',name); end
             load(name);
             name0 = [name0 '+' name]; 
@@ -668,8 +681,8 @@ for i = 1:numel(D.res_array)
           D.n_regions = 1;
         end
            
-        % print information about training sample only once for D.threshold_std == Inf or otherwise always
-        if D.verbose && (i==1 && j==1 && k==1) || isfinite(D.threshold_std)
+        % print information about training sample only once
+        if D.verbose && (i==1 && j==1 && k==1)
           % only use selected data
           age_test = age(ind_test);
           fprintf('\n%d subjects used for training (age %3.1f..%3.1f years)\n',length(D.age_train),min(D.age_train),max(D.age_train));
@@ -1041,7 +1054,7 @@ if multiple_BA
   fprintf('\n');
   BA_weighted = BA_unsorted_weighted(ind_groups,:);
   
-  if D.verbose >1
+  if D.verbose > 1
     figure(23)
     plot(D.age_test(D.ind_adjust),D.age_test(D.ind_adjust)+BA_unsorted_weighted(D.ind_adjust),'.')
     hold on 
@@ -1270,7 +1283,7 @@ end
 
 if (nargin < 4) && (ensemble_method == 4)
   fprintf('For GPR ensemble method you have to define 5 arguments.\n');
-  ensemble_method = 1;
+  return;
 end
 
 % remove columns with NaNs where model estimation failed
@@ -1325,7 +1338,7 @@ case 1   % use GLM estimation to minimize MAE
 case 2 % simple mean of all models
   
   BA_weighted = squeeze(mean(BA_corrected,2));
-case {3, -3}   % use GLM estimation to maximize group differences or correlation (EXPERIMENTAL!)
+case 3   % use GLM estimation to maximize group differences or correlation (EXPERIMENTAL!)
 
   if ~isfield(D,'contrast')
     error('D.contrast has to be defined.');
@@ -1356,7 +1369,7 @@ case {3, -3}   % use GLM estimation to maximize group differences or correlation
   end
   
   disp('#############################################');
-  warning('Experimental: Not yet working properly!');
+  warning('Experimental: May not yet working properly!');
   disp('#############################################');
 
   if group_diff
@@ -1388,12 +1401,8 @@ case {3, -3}   % use GLM estimation to maximize group differences or correlation
     Xind = X(ind_finite,:);
   end
   
-  if ensemble_method > 0
-    Beta = pinv(Yind)*Xind;
-  else % use non-linear optimization
-    Beta = nonlin_optim(Yind, Xind);
-  end
-
+  % use non-linear optimization
+  Beta = nonlin_optim(Yind, Xind);
 
   fprintf('\nPredicted weights using %d subjects:\t',numel(D.ind_adjust));
   fprintf('%.2f ',Beta);
@@ -1443,7 +1452,7 @@ case 5 % weighted average of all models w.r.t. MAE
     BA_weighted(:,r) = PredictedAge_weighted - age;
   end
 
-case {6, -6}   % use GLM estimation for mean tissue to maximize group differences or correlation (EXPERIMENTAL!)
+case 6   % use GLM estimation for mean tissue to maximize group differences or correlation (EXPERIMENTAL!)
 
   if ~isfield(D,'contrast')
     error('D.contrast has to be defined.');
@@ -1481,7 +1490,7 @@ case {6, -6}   % use GLM estimation for mean tissue to maximize group difference
   end
   
   disp('#############################################');
-  warning('Experimental: Not yet working properly!');
+  warning('Experimental: May not yet working properly!');
   disp('#############################################');
 
   if group_diff
@@ -1528,11 +1537,8 @@ case {6, -6}   % use GLM estimation for mean tissue to maximize group difference
     Xind = X(ind_finite,:);
   end
   
-  if ensemble_method > 0
-    Beta = pinv(Yind)*Xind;
-  else % use non-linear optimization
-    Beta = nonlin_optim(Yind, Xind);
-  end
+  % use non-linear optimization
+  Beta = nonlin_optim(Yind, Xind);
 
   fprintf('\nPredicted weights using %d subjects:\t',numel(D.ind_adjust));
   fprintf('%.2f ',Beta);
@@ -1601,16 +1607,20 @@ for i = 1:max(site_adjust)
   
     % test whether sample size is too small
     if length(ind_site_adjust) < 15
-      warning('Sample #%d for site-specific trend-correction is too small (n=%d). Use only offset-correction by Mean instead.\n',...
+      if D.trend_degree > 0
+        warning('Sample #%d for site-specific trend-correction is too small (n=%d). Use only offset-correction by Mean instead.\n',...
           i,length(ind_site_adjust));
+      end
       offset = median(BrainAGE(ind_site_adjust,:));
       BrainAGE(ind_site,:) = BrainAGE(ind_site,:) - offset;
       PredictedAge(ind_site,:) = PredictedAge(ind_site,:) - offset;
       
     % test whether age range is too small
     elseif (max(age(ind_site_adjust)) - min(age(ind_site_adjust))) < 5
-      warning('Age range for site-specific trend-correction is too small (%g). Use only offset-correction by Mean instead.\n',...
-          (max(age(ind_site_adjust)) - min(age(ind_site_adjust))));
+      if D.trend_degree > 0
+        warning('Age range for site-specific trend-correction is too small (%g). Use only offset-correction by Mean instead.\n',...
+            (max(age(ind_site_adjust)) - min(age(ind_site_adjust))));
+      end
       offset = median(BrainAGE(ind_site_adjust,:));
       BrainAGE(ind_site,:) = BrainAGE(ind_site,:) - offset;
       PredictedAge(ind_site,:) = PredictedAge(ind_site,:) - offset;
