@@ -182,13 +182,21 @@ end
 % load training sample(s)
 for i = 1:n_training_samples
   if load_training_sample
-    name0 = [D.smooth D.seg{1} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat'];
+    if contains(D.seg{1}, 'mesh')
+      name0 = [D.smooth D.seg{1} '_' D.training_sample{i} D.relnumber '.mat'];
+    else
+      name0 = [D.smooth D.seg{1} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat'];
+    end
     name = fullfile(D.dir, name0);
     
     % check whether release number is already included in name
     if ~exist(name,'file')
       if contains(D.training_sample{i},'_r')
-        name = fullfile(D.dir, [D.smooth D.seg{1} '_' D.res 'mm_' D.training_sample{i} '.mat']);
+        if contains(D.seg{1}, 'mesh')
+          name = fullfile(D.dir, [D.smooth D.seg{1} '_' D.training_sample{i} '.mat']);
+        else
+          name = fullfile(D.dir, [D.smooth D.seg{1} '_' D.res 'mm_' D.training_sample{i} '.mat']);
+        end
       end
     end
     
@@ -210,12 +218,20 @@ for i = 1:n_training_samples
     % consider additional segmentations
     if length(D.seg) > 1
       for j = 2:length(D.seg)
-        name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat']);
+        if contains(D.seg{j}, 'mesh')
+          name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.training_sample{i} D.relnumber '.mat']);
+        else
+          name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} D.relnumber '.mat']);
+        end
         
         % check whether release number is already included in name
         if ~exist(name,'file')
           if contains(D.training_sample{i},'_r')
-          name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} '.mat']);
+            if contains(D.seg{j}, 'mesh')
+              name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.training_sample{i} '.mat']);
+            else
+              name = fullfile(D.dir, [D.smooth D.seg{j} '_' D.res 'mm_' D.training_sample{i} '.mat']);
+            end
           end
         end
         load(name);
