@@ -6,7 +6,14 @@ function BA_spider_plot(data, varargin)
 %      data        - data to plot
 %   Name:
 %      names       - group names for legend (default [])
-%      range       - axis range for all data points (default [floor(min(data(:))); ceil(max(data(:)))])
+%      stderr      - standard error for each data point (same format/size as
+%                    data). If provided, a shaded band (mean +/- stderr) is
+%                    plotted around each group's line in the same color but
+%                    more transparent, with dashed edges. The axis range is
+%                    automatically expanded to enclose the band (default [])
+%      range       - axis range for all data points
+%                    (default [floor(min(data(:))); ceil(max(data(:)))], or,
+%                    if stderr is given, expanded to enclose data +/- stderr)
 %      colors      - colors for each group (default lines(n_groups)
 %      markers     - define group markers (default 'osd^v<>hp')
 %      parent      - figure parent
@@ -61,7 +68,8 @@ P = data(:, ind);
 
 % Default arguments
 names       = [];
-range       = [floor(min(data(:))); ceil(max(data(:)))]; % use ceil/floor
+stderr      = [];
+range       = []; % computed below (accounts for stderr band if provided)
 colors      = lines(n_groups);
 markers     = 'o';
 markers     = 'osd^v<>hp';
@@ -79,6 +87,8 @@ if numvarargs > 1
         switch lower(name_arguments{ii})
             case 'names'
                 names = value_arguments{ii};
+            case 'stderr'
+                stderr = value_arguments{ii};
             case 'range'
                 range = value_arguments{ii};
             case 'colors'
@@ -93,6 +103,29 @@ if numvarargs > 1
                 error('Error: Please enter in a valid name-value pair.');
         end
     end
+end
+
+% Reorder standard error the same way as the data and validate its size
+if ~isempty(stderr)
+  % Match the orientation of the (possibly transposed) data
+  if ~isequal(size(stderr), size(data))
+    stderr = stderr';
+  end
+  if ~isequal(size(stderr), size(data))
+    error('Error: stderr must have the same size as data.');
+  end
+  SE = stderr(:, ind);
+else
+  SE = [];
+end
+
+% Default axis range: expand to enclose the +/- stderr band when provided
+if isempty(range)
+  if isempty(stderr)
+    range = [floor(min(data(:))); ceil(max(data(:)))]; % use ceil/floor
+  else
+    range = [floor(min(data(:) - stderr(:))); ceil(max(data(:) + stderr(:)))];
+  end
 end
 
 % create figure if not defined
@@ -129,26 +162,31 @@ warning off
 spider_plot(P,...
     'AxesLabels', ROInames(ind),...
     'AxesLimits', repmat([range(1); range(2)],1,n_regions),...
+    'GroupError', SE,...
     'Color', colors,...
     'FillOption', {'on'},...
-    'FillTransparency', 0.1,...
+    'FillTransparency', 0.05,...
+    'GroupErrorTransparency', 0.05,...
     'LabelFontSize', 24,...
     'AxesPrecision', 1,...
     'AxesInterval', axesinterval,...
     'AxesLabelsEdge','w',...
-    'AxesFontSize', 20, ...
+    'AxesFontSize', 18, ...
     'marker', markers,  ... % added
     'markersize', 96, ... 
     'axesDisplay', axesdisplay, ...  % all|none|one|data|data-percent - keep it simple 
     'axesOffset' , 0, ... % add an inner circle (integer value)
-    'axesDataOffset', 0, ... % 
+    'axesDataOffset', 0.2, ... % 
     'axesFontColor', 0.4 * ones(1,3), ... % to have it similar to the axes color 
-    'axesLabelsOffset', 0.14, ...
+    'axesLabelsOffset', 0.15, ...
     'axesZoom', 0.8 ...
     );
 
 if ~isempty(names)
-  hl = legend(strrep(cellstr(names),'_','-'),'Location','SouthOutside','FontSize',24);
+  if isstr(names)
+    names = cellstr(names);
+  end
+  hl = legend(strrep(names,'_','-'),'Location','SouthOutside','FontSize',24);
 end
 
 set(parent,'Name','Mean Weighted BrainAGE','MenuBar','none');
@@ -224,7 +262,7 @@ axes_precision = 1;
 axes_display = 'all';
 axes_limits = [min(P_limits, [], 1); max(P_limits, [], 1)];
 fill_option = 'off';
-fill_transparency = 0.2;
+fill_transparency = 0.05;
 fill_cdata = [];
 colors = lines(num_data_groups);
 line_style = '-';
@@ -270,13 +308,15 @@ axes_handle = gobjects;
 error_bars = 'off';
 error_positive = [];
 error_negative = [];
+group_error = [];
+group_error_transparency = 0.05;
 axes_web_type = 'web';
 axes_tick_format = 'default';
 if num_data_points == 8
     % Slightly rotate 8-region plots to match left/right layout used for 10 regions.
     axes_start = 5*pi/8;
 else
-    axes_start = pi/2;
+    axes_start = 0;
 end
 
 % Check if optional arguments were specified
@@ -393,6 +433,10 @@ if numvarargs > 1
                 error_positive = value_arguments{ii};
             case 'errornegative'
                 error_negative = value_arguments{ii};
+            case 'grouperror'
+                group_error = value_arguments{ii};
+            case 'grouperrortransparency'
+                group_error_transparency = value_arguments{ii};
             case 'axeswebtype'
                 axes_web_type = value_arguments{ii};
             case 'axestickformat'
@@ -613,6 +657,21 @@ if strcmp(error_bars, 'on') &&...
     if length(error_negative) ~= num_data_points
         error('Error: Please make sure the number of error negative elements equal the data points');
     end
+end
+
+% Check if group error (per-group standard error band) is valid
+if ~isempty(group_error)
+    % Must match the size of the data
+    if ~isequal(size(group_error), size(P))
+        error('Error: Please make sure the group error has the same size as the data.');
+    end
+end
+
+% Check if group error transparency is valid
+if ~isnumeric(group_error_transparency) ||...
+        ~isscalar(group_error_transparency) ||...
+        group_error_transparency < 0 || group_error_transparency > 1
+    error('Error: Please enter a group error transparency value between [0, 1].');
 end
 
 % Check if axes web type is valid
@@ -1500,6 +1559,72 @@ for ii = 1:num_data_groups
                 'FontSize', axes_font_size,...
                 'HorizontalAlignment', 'center',...
                 'VerticalAlignment', 'middle');
+        end
+    end
+
+    % Plot per-group standard error band (mean +/- stderr) in the same
+    % color but more transparent, with dashed edges. The caller expands the
+    % axes range so the band stays within the axes limits. Only supported
+    % for normal axes direction (which reordered BrainAGE data always uses).
+    if ~isempty(group_error) && ~any(axes_direction_index)
+        % Upper and lower bounds for this group
+        upper_val = P(ii, :) + group_error(ii, :);
+        lower_val = P(ii, :) - group_error(ii, :);
+
+        % Scale to [0, 1] using the axes range and apply the radial offset,
+        % identical to the scaling used for the mean data above
+        upper_scaled = (upper_val - axes_range(1, :)) ./ axes_range(3, :);
+        lower_scaled = (lower_val - axes_range(1, :)) ./ axes_range(3, :);
+        upper_scaled = upper_scaled * (1 - rho_offset) + rho_offset;
+        lower_scaled = lower_scaled * (1 - rho_offset) + rho_offset;
+
+        % Build the shaded band between the lower and upper bounds as a set
+        % of quadrilateral patches (same approach as the axes shaded region)
+        P_band = [lower_scaled; upper_scaled];
+        P_band = [P_band, P_band(:, 1)];       % close the loop
+        P_band = [P_band(1, :), P_band(2, :)]; % flatten: lower then upper
+        band_theta = [theta, theta];
+        [x_band, y_band] = pol2cart(band_theta, P_band);
+
+        % Interweave lower and upper vertices
+        x_band = reshape(x_band, [], 2)';
+        y_band = reshape(y_band, [], 2)';
+        x_band = x_band(:);
+        y_band = y_band(:);
+
+        % Patch each group of four adjacent vertices
+        for jj = 1:2:length(x_band)-2
+            v = [x_band(jj:jj+3), y_band(jj:jj+3)];
+            f = [1 2 4 3];
+            h = patch(ax, 'Faces', f, 'Vertices', v,...
+                'FaceColor', colors(ii, :),...
+                'EdgeColor', 'none',...
+                'FaceAlpha', group_error_transparency,...
+                'Visible', plot_visible);
+
+            % Turn off legend annotation
+            h.Annotation.LegendInformation.IconDisplayStyle = 'off';
+        end
+
+        % Dashed boundary lines for the band edges (same color, faded)
+        for bb = 1:2
+            if bb == 1
+                bound_scaled = upper_scaled;
+            else
+                bound_scaled = lower_scaled;
+            end
+
+            % Close the loop and convert to cartesian coordinates
+            [x_edge, y_edge] = pol2cart(theta, [bound_scaled, bound_scaled(1)]);
+            h = plot(ax, x_edge, y_edge,...
+                'LineStyle', '-',...
+                'Color', colors(ii, :),...
+                'LineWidth', 0.1*line_width(ii),...
+                'Visible', plot_visible);
+            h.Color(4) = min(1, group_error_transparency + 0.3);
+
+            % Turn off legend annotation
+            h.Annotation.LegendInformation.IconDisplayStyle = 'off';
         end
     end
 
