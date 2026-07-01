@@ -768,6 +768,7 @@ for i = 1:numel(D.res_array)
         age_test = zeros(n_groups,2);
         median_BrainAGE = zeros(n_groups,D.n_regions);
         SD_BrainAGE = zeros(n_groups,D.n_regions);
+        SE_BrainAGE = zeros(n_groups,D.n_regions);
     
         % prepare group-wise data
         ind_groups = [];
@@ -1181,6 +1182,7 @@ for o = 1:n_groups
   age_test(o,2) = std(D.age_test(D.ind_groups{o}));
   median_BrainAGE(o,:) = median(data_plot(D.ind_groups{o},:));
   SD_BrainAGE(o,:) = std(data_plot(D.ind_groups{o},:));
+  SE_BrainAGE(o,:) = SD_BrainAGE(o,:)/sqrt(length(D.ind_groups{o}));
 end
   
 % print BrainAGE of groups
@@ -1213,14 +1215,20 @@ if D.verbose && sum(isnan(data_plot(:))) == 0
   % show spiderplot for regional BrainAGE
   if D.parcellation
       combined_BA = zeros(numel(data_cell),size(data_plot,2));
+      Names = cell(numel(data_cell),1);
       for l = 1:numel(data_cell)
           combined_BA(l,:) = feval(D.spiderplot.func,data_plot(D.ind_groups{l},:));
+          if strcmpi(D.spiderplot.func,'median')
+            Names{l} = ['Median' char(177) 'SE ' deblank(D.name_groups(l,:))];
+          elseif strcmpi(D.spiderplot.func,'mean')
+            Names{l} = ['Mean' char(177) 'SE ' deblank(D.name_groups(l,:))];
+          end
       end
       if isfield(D,'spiderplot')
         if isfield(D.spiderplot,'range')
-          BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
+          BA_spider_plot(combined_BA, 'stderr', SE_BrainAGE, 'Names', Names, 'Colors', groupcolor, 'Parent', f, 'range', D.spiderplot.range);
         else
-          BA_spider_plot(combined_BA, 'Names', D.name_groups, 'Colors', groupcolor, 'Parent', f);
+          BA_spider_plot(combined_BA, 'stderr', SE_BrainAGE, 'Names', Names, 'Colors', groupcolor, 'Parent', f);
         end
       end
       if strcmpi(D.spiderplot.func,'median')
