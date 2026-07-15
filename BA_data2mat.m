@@ -76,7 +76,15 @@ function BA_data2mat(D, fwhm, res, seg)
 
 % add cat12 path if not already done
 if ~exist('cat_io_data2mat','builtin')
-  addpath(fullfile(spm('dir'),'toolbox','cat12'));
+  path = fullfile(spm('dir'),'toolbox','CAT');
+  if exist(path,"dir")
+    addpath(path);
+  else
+    path = fullfile(spm('dir'),'toolbox','cat12');
+    if exist(path,"dir")
+      addpath(path);
+    end
+  end
 end
 
 % set some defaults

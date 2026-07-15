@@ -145,7 +145,15 @@ global min_hyperparam
 
 % add cat12 path if not already done
 if ~exist('cat_stat_polynomial','file')
-  addpath(fullfile(spm('dir'),'toolbox','cat12'));
+  path = fullfile(spm('dir'),'toolbox','CAT');
+  if exist(path,"dir")
+    addpath(path);
+  else
+    path = fullfile(spm('dir'),'toolbox','cat12');
+    if exist(path,"dir")
+      addpath(path);
+    end
+  end
 end
 
 % use normalized BA as default and scale it to MAE of 5
