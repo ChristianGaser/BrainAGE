@@ -71,7 +71,6 @@ names       = [];
 stderr      = [];
 range       = []; % computed below (accounts for stderr band if provided)
 colors      = lines(n_groups);
-markers     = 'o';
 markers     = 'osd^v<>hp';
 axesdisplay = 'one';
 
@@ -183,10 +182,10 @@ spider_plot(P,...
     );
 
 if ~isempty(names)
-  if isstr(names)
+  if ischar(names)
     names = cellstr(names);
   end
-  hl = legend(strrep(names,'_','-'),'Location','SouthOutside','FontSize',24);
+  legend(strrep(names,'_','-'),'Location','SouthOutside','FontSize',24);
 end
 
 set(parent,'Name','Mean Weighted BrainAGE','MenuBar','none');
