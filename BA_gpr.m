@@ -203,10 +203,16 @@ for i = 1:n_training_samples
     if D.verbose > 1, fprintf('BA_gpr_core: load %s\n',name); end
 
     % search first if the file exists in current folder
-    if ~exist(name) && exist(name0)
+    if ~exist(name,'file') && exist(name0,'file')
       load(name0)
-    else load(name); end
+    else 
+      load(name)
+    end
     
+    if size(Y,1) ~= numel(age)
+      error('Data size for %s is %d, but age has %d entries',name,size(Y,1),numel(age))
+    end
+
     Y_train    = [Y_train; single(Y)]; clear Y
     age_train  = [age_train; age];
         
@@ -234,7 +240,7 @@ for i = 1:n_training_samples
             end
           end
         end
-        load(name);
+        load(name,'Y')
       end
       Y_train2 = [Y_train2; single(Y)]; clear Y
     end
@@ -323,9 +329,7 @@ if ~isinf(D.threshold_std)
   end
 
   % sort files
-  [mean_cov_sorted, ~] = sort(mean_cov,'descend');
   threshold_cov = mean(mean_cov) - D.threshold_std*std(mean_cov);
-  n_thresholded = find(mean_cov_sorted < threshold_cov, 1 );
 
   ind_removed = find(mean_cov < threshold_cov);
   if D.verbose > 1, fprintf('%d subjects removed because their mean covariance was deviating more than %g standard deviation from mean.\n',length(ind_removed),D.threshold_std); end
