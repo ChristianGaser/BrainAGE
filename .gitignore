@@ -1,0 +1,18 @@
+# some log and debug files
+.DS_Store
+log
+log2
+.refact
+test*.m
+
+# ignore zip, pdf, doc*, and nifti
+*.asv
+*.zip
+*.pdf
+*.doc*
+*.nii
+*.webloc
+*/*.nii
+*.m~
+*.~ 
+test_*
