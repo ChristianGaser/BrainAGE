@@ -106,8 +106,6 @@ function [BrainAGE, BrainAGE_unsorted, BrainAGE_all, D, age] = BA_gpr_ui(D)
 % D.groupcolor      - matrix with (group)-bar-color(s), use jet(numel(data)) or other color functions (nejm by default)
 % D.normalize_BA    - normalize BA values w.r.t. MAE to make BA less dependent from training sample (i.e. size) and scale 
 %                     it to MAE of 5
-% D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
-%                     harmonize data using ComCAT. A vector with coding of the scanners is required for the test data (EXPERIMENTAL!).
 % D.nuisance        - additionally define nuisance parameter for covarying out (e.g. gender)
 % D.spiderplot.func - show spider (radar) plot either with mean or median values (only valid if D.parcellation is used):
 %                     'median' - use median values 
@@ -293,11 +291,6 @@ end
 
 if iscell(D.data)
   D.data = char(D.data);
-end
-
-% if comcat is defined and set to 0 then remove this field
-if isfield(D,'comcat') && isscalar(D.comcat) &&  D.comcat == 0
-  D = rmfield(D,'comcat');
 end
 
 region_names = {'R Frontal','R Parietal','R Occipital','R Temporal','R Subcortical/Cerebellum',...

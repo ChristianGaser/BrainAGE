@@ -17,8 +17,6 @@ function [BrainAGE, PredictedAge, D] = BA_gpr(D)
 %                     [0 Inf] use all data
 %                     [50 80] use age range of 50..80
 %                     if not defined use min/max of age of test data
-% D.comcat          - If data are acquired at different sites (e.g. using different scanners or sequences) we can
-%                     harmonize data using ComCAT. A vector with coding of the scanners is required for the test data (EXPERIMENTAL!).
 % D.ind_train       - define indices of subjects used for training (e.g. limit the training to male subjects only)
 % D.RVR             - use old RVR method (Spider toolbox necessary, where the toolbox path can be defined using D.spider_dir)
 % D.PCA             - apply PCA as feature reduction (default=1)
@@ -264,15 +262,6 @@ end
 
 if length(D.seg) > 1 && load_training_sample
   Y_train = [Y_train Y_train2]; clear Y_train2
-end
-
-% apply comcat harmonization while preserving age effects
-if  isfield(D,'comcat')
-  if length(D.comcat) ~= length(D.age_test)
-    error('Size of site definition in D.comcat (n=%d) differs from test sample size (n=%d)\n',length(D.comcat),length(D.age_test));
-  end
-  fprintf('Apply ComCat for %d sites\n',numel(unique(D.comcat)));
-  Y_test = cat_stat_comcat(Y_test, D.comcat,[],D.age_test, 0, 1, 0);
 end
 
 % use only indicated subjects (e.g. for gender-wise training or k-fold cross-validation)
