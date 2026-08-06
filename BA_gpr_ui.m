@@ -610,7 +610,11 @@ for i = 1:numel(D.res_array)
         end
         
         n_groups = numel(D.ind_groups);
-        
+
+        if ~isfield(D,'name_groups')
+          D.name_groups = char(num2str(1:n_groups));
+        end
+
         if ~isfield(D,'groupcolor')
           groupcolor = cat_io_colormaps('nejm',n_groups);
         else
