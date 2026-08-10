@@ -560,6 +560,9 @@ for i = 1:numel(D.res_array)
           male = ones(size(age));
         end
                 
+        if size(age,1) == 1
+          age = age';
+        end
         D.age_test = double(age);
 
         if exist('male','var')
