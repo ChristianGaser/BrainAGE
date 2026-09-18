@@ -651,17 +651,22 @@ for i = 1:numel(D.res_array)
             rh_atlas = 'rh.Brain_Lobes.annot';
             [~, rh_label, ~] = cat_io_FreeSurfer('read_annotation',rh_atlas);
 
-            % since the atlas regions are equal and go up to 200 we have to
-            % multiply rh with 5
-            atlas = [5*rh_label; lh_label];
+            % labels of both hemispheres are already unique (rh 1..5, lh 11..15)
+            % and merged 32k-meshes are ordered lh first, then rh
+            atlas = [lh_label(:); rh_label(:)];
 
-            % lobes have higher numbers and start with 50
-            regions = unique(atlas(atlas >= 50));
+            regions = unique(atlas(atlas > 0));
 
-            % subcortical regions and cerebellum have to be removed (200
-            % and 200*5)
-            regions(regions==200)  = [];
-            regions(regions==1000) = [];
+            % subcortical regions and cerebellum are not represented on the
+            % surface and have to be removed (5 for rh and 15 for lh)
+            regions(regions==5)  = [];
+            regions(regions==15) = [];
+
+            % surface data are only saved inside a mask that is defined by ind
+            if ~exist('ind','var')
+              error(['No index ''ind'' of surface values found in %s. Please re-create '...
+                     'the data using BA_data2mat.'],name);
+            end
           else
             atlas_name = ['Brain_Lobes_' D.res 'mm.mat'];          
             load(atlas_name)
@@ -670,6 +675,10 @@ for i = 1:numel(D.res_array)
               error('Atlas must contain atlas as variable');
             end
             regions = unique(atlas(atlas > 0));
+          end
+          
+          if isempty(regions)
+            error('No regions found in lobe atlas. Local BrainAGE cannot be estimated.');
           end
           
           D.n_regions = numel(regions);
