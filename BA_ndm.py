@@ -40,6 +40,11 @@ distance; NDM.Deviation, also per lobe), and the total deviation at
 chronological age (NDM.Deviation_age).  With --zmaps, voxel/vertex-wise z-maps
 of the test subjects are saved as well.
 
+Non-Gaussian data can be warped per voxel/vertex (sinh-arcsinh, fitted jointly
+with a voxel-wise normative model, as in warped Bayesian linear regression):
+--warp-zmaps for the z-maps, where it calibrates the tails (recommended), and
+--warp for the brain age models, where it made no difference in tests.
+
 For comparison, a Python replica of the GPR BrainAGE (BA_gpr.m, linear kernel,
 PCA, linear trend correction with trend_method = 1) is run on the same folds.
 
@@ -249,7 +254,7 @@ def _deviance(r, eta):
     return np.sum(np.log(2 * np.pi) + 2 * eta + r ** 2 * np.exp(-2 * eta), axis=0)
 
 
-def fit_location_scale(Y, X, W, max_iter=2000, tol=1e-6, max_elements=4_000_000):
+def fit_location_scale(Y, X, W, max_iter=2000, tol=1e-6, max_elements=4_000_000, init=None):
     """ML fit of y_j ~ N(X beta_j, exp(W theta_j)^2) for every column j of Y.
 
     Port of _fit_location_scale() in combat_family.py (ComCat) for data of
@@ -257,7 +262,8 @@ def fit_location_scale(Y, X, W, max_iter=2000, tol=1e-6, max_elements=4_000_000)
     identity link for mu, log link for sigma): alternate a weighted
     least-squares update of beta with a Fisher-scoring update of theta,
     halving the theta step if the deviance increases.  W[:, 0] must be the
-    intercept.  Features are processed in chunks to bound memory.
+    intercept.  Features are processed in chunks to bound memory.  init =
+    (beta, theta) starts from a previous solution instead of OLS.
 
     Returns beta (kx, p), theta (kw, p), converged (p,)
     """
@@ -275,11 +281,14 @@ def fit_location_scale(Y, X, W, max_iter=2000, tol=1e-6, max_elements=4_000_000)
     for start in range(0, p, step):
         y_all = np.asarray(Y[:, start:start + step], dtype=np.float64)
 
-        # start: OLS mean, constant sigma
-        b_all = X_pinv @ y_all
-        r = y_all - X @ b_all
-        t_all = np.zeros((kw, y_all.shape[1]))
-        t_all[0] = 0.5 * np.log(np.mean(r ** 2, axis=0))
+        if init is not None:
+            b_all = np.array(init[0][:, start:start + step], dtype=np.float64)
+            t_all = np.array(init[1][:, start:start + step], dtype=np.float64)
+        else:                                      # start: OLS mean, constant sigma
+            b_all = X_pinv @ y_all
+            r = y_all - X @ b_all
+            t_all = np.zeros((kw, y_all.shape[1]))
+            t_all[0] = 0.5 * np.log(np.mean(r ** 2, axis=0))
 
         active = np.arange(y_all.shape[1])
         for _ in range(max_iter):
@@ -354,7 +363,8 @@ class NormativeModel:
                 X.append((codes[:, None] == np.arange(1, len(self.site_levels))).astype(float))
         return np.hstack(X), np.hstack(W)
 
-    def fit(self, Y, age, male, site=None, verbose=False):
+    def _setup(self, age, male, site):
+        """Age bases, sites and sex coding of the training data; returns site."""
         n = len(age)
         site = np.zeros(n, dtype=int) if site is None else np.asarray(site)
         self.site_levels, counts = np.unique(site, return_counts=True)
@@ -362,6 +372,10 @@ class NormativeModel:
         self.use_male = np.unique(male).size > 1
         self.basis_mu = NaturalSpline(age, self.df_mu)
         self.basis_sigma = NaturalSpline(age, self.df_sigma)
+        return site
+
+    def fit(self, Y, age, male, site=None, verbose=False):
+        site = self._setup(age, male, site)
 
         finite = np.all(np.isfinite(Y), axis=0)
         sd = np.zeros(Y.shape[1])
@@ -407,9 +421,22 @@ class NormativeModel:
         self.scale[~(self.scale > 0)] = 1
 
 
+def _affine_profile(w, mu, sd):
+    """Maximum likelihood a, b (per column) of w ~ N(a + b mu, (b sd)^2)."""
+    q = 1 / sd ** 2
+    Q = q.sum(axis=0)
+    wbar, mbar = (q * w).sum(axis=0) / Q, (q * mu).sum(axis=0) / Q
+    dw = w - wbar
+    Sww = (q * dw ** 2).sum(axis=0)
+    Swm = (q * dw * (mu - mbar)).sum(axis=0)
+    c = (Swm + np.sqrt(Swm ** 2 + 4 * w.shape[0] * Sww)) / (2 * Sww)   # c = 1 / b
+    return (c * wbar - mbar) / c, 1 / c
+
+
 def _warp_loglik(x, mu, sd, eps, delta, prior):
     """Log-likelihood per column of x warped by w = sinh(delta asinh(x) - eps):
-    sum_i log N(w_i; mu_i, sd_i) + log dw/dx_i (without constants), plus the prior."""
+    sum_i log N(w_i; mu_i, sd_i) + log dw/dx_i without the terms that are
+    constant in the warp (-log sd, constants), plus the prior."""
     t = delta * np.arcsinh(x) - eps
     ll = -0.5 * ((np.sinh(t) - mu) / sd) ** 2 + np.log(np.cosh(t))
     return ll.sum(axis=0) + x.shape[0] * np.log(delta) - 0.5 * (eps ** 2 + np.log(delta) ** 2) / prior
@@ -421,7 +448,7 @@ def fit_warp(x, mu, sd, eps, delta, n_iter=20, prior=9.0, tol=1e-6):
     x (n, p) standardized data; mu, sd (n, p) location and scale of the warped
     data.  Maximizes sum_i [log N(w_i; mu_i, sd_i) + log dw/dx_i] with a weak
     normal prior (variance prior) on eps and log(delta) centred on the identity
-    warp.  Damped Newton steps in (eps, log delta) with step halving, so the
+    warp.  Damped Newton steps in (eps, eta = log delta) with step halving, so the
     objective never decreases.  Returns eps, delta (p,).
     """
     n = x.shape[0]
@@ -445,17 +472,17 @@ def fit_warp(x, mu, sd, eps, delta, n_iter=20, prior=9.0, tol=1e-6):
         h_ee = np.sum(-c2s - r * w + sech2, axis=0) - 1 / prior
         h_ed = np.sum(ua * c2s + r * w * ua - ua * sech2, axis=0)
         h_dd = np.sum(ua ** 2 * (-c2s - r * w + sech2), axis=0) - n / de ** 2
-        # parameters (eps, eta = log delta)
+        # derivatives with respect to (eps, eta = log delta)
         g_h = de * g_d - eta[active] / prior
         h_eh = de * h_ed
         h_hh = de ** 2 * h_dd + de * g_d - 1 / prior
         # make the Hessian negative definite (Levenberg damping), then Newton step
         lam_max = 0.5 * (h_ee + h_hh) + np.sqrt(0.25 * (h_ee - h_hh) ** 2 + h_eh ** 2)
         damp = np.maximum(0, lam_max + 1e-6 * n)
-        a, b, d = h_ee - damp, h_eh, h_hh - damp
-        det = a * d - b * b
-        step_e = -(d * g_e - b * g_h) / det
-        step_h = -(-b * g_e + a * g_h) / det
+        h11, h12, h22 = h_ee - damp, h_eh, h_hh - damp
+        det = h11 * h22 - h12 * h12
+        step_e = -(h22 * g_e - h12 * g_h) / det
+        step_h = -(-h12 * g_e + h11 * g_h) / det
         acc = np.zeros(active.size, dtype=bool)
         new_e, new_h = e.copy(), eta[active].copy()
         f = np.ones(active.size)
@@ -485,16 +512,28 @@ class Warp:
     As in warped Bayesian linear regression, every feature is standardized and
     warped by w = sinh(delta asinh(x) - eps), and the warped data follow the
     location-scale model of NormativeModel.  The parameters are estimated by
-    coordinate ascent on the joint likelihood: the normative model is fitted to
-    the warped data, then (eps, delta) are updated given its location and scale
-    (fit_warp), n_outer times.  The warp does not depend on age, so its Jacobian
-    is constant in the brain age likelihood; the warped data simply replace the
-    raw data in all models.
+    block-coordinate ascent on the joint likelihood, per feature until the
+    log-likelihood gains less than tol per subject (at most max_outer rounds):
+
+    1. Newton steps for (eps, delta) given location and scale (fit_warp)
+    2. the location and scale are carried over to the new warp by the best
+       affine rescaling a + b mu, b sd (closed form), then updated by a few
+       warm-started RS iterations (fit_location_scale).
+
+    Cheap rounds converge much faster than refitting the normative model to
+    convergence each time, and the carry-over removes most of the coupling
+    between the warp and the overall location and scale.  (Optimizing the warp
+    over the affine rescaling within step 1 instead converges to poorer
+    stationary points.)  The warp does not depend on age, so its Jacobian is
+    constant in the brain age likelihood; the warped data simply replace the raw
+    data in all models.
     """
 
-    def __init__(self, df_mu=5, df_sigma=3, n_outer=4, prior=9.0, chunk=4000):
+    def __init__(self, df_mu=5, df_sigma=3, max_outer=40, tol=1e-5, prior=9.0,
+                 warp_iter=2, rs_iter=3, chunk=4000):
         self.df_mu, self.df_sigma = df_mu, df_sigma
-        self.n_outer, self.prior, self.chunk = n_outer, prior, chunk
+        self.max_outer, self.tol, self.prior = max_outer, tol, prior
+        self.warp_iter, self.rs_iter, self.chunk = warp_iter, rs_iter, chunk
 
     def fit(self, Y, age, male, site=None, verbose=False):
         finite = np.all(np.isfinite(Y), axis=0)
@@ -505,25 +544,49 @@ class Warp:
         self.sd = sd[self.valid]
         self.eps = np.zeros(self.valid.size)
         self.delta = np.ones(self.valid.size)
-        self.loglik = []
-        for _ in range(self.n_outer):
-            model = NormativeModel(self.df_mu, self.df_sigma).fit(
-                self.transform(Y), age, male, site)
-            if not np.array_equal(model.valid, self.valid):
-                raise ValueError("Warped data have constant or non-finite features.")
-            X, W = model._design(age, male, site)
-            total = 0.0
-            for c0 in range(0, self.valid.size, self.chunk):
-                cols = slice(c0, c0 + self.chunk)
-                x = self._standardize(Y, cols)
-                mu, sd = X @ model.beta[:, cols], np.exp(W @ model.theta[:, cols])
-                self.eps[cols], self.delta[cols] = fit_warp(
-                    x, mu, sd, self.eps[cols], self.delta[cols], prior=self.prior)
-                total += np.sum(_warp_loglik(x, mu, sd, self.eps[cols], self.delta[cols], self.prior)
-                                - np.sum(np.log(sd), axis=0))
-            self.loglik.append(total)
-            if verbose:
-                print(f"    warp: log-likelihood {total:.6g}")
+        design = NormativeModel(self.df_mu, self.df_sigma)
+        X, W = design._design(age, male, design._setup(age, male, site))
+        n = len(age)
+        ll_start, ll_end, rounds = 0.0, 0.0, 0
+        t0 = time.time()
+        for c0 in range(0, self.valid.size, self.chunk):
+            cols = np.arange(c0, min(c0 + self.chunk, self.valid.size))
+            x = self._standardize(Y, cols)
+            beta, theta, _ = fit_location_scale(x, X, W)      # identity warp
+            e, d = self.eps[cols], self.delta[cols]
+            ll = _warp_loglik(x, X @ beta, np.exp(W @ theta), e, d, self.prior) \
+                - np.sum(W @ theta, axis=0)
+            ll_start += ll.sum()
+            active = np.arange(cols.size)
+            for it in range(self.max_outer):
+                xa, ba, ta = x[:, active], beta[:, active], theta[:, active]
+                mu, s = X @ ba, np.exp(W @ ta)
+                ea, da = fit_warp(xa, mu, s, e[active], d[active], self.warp_iter, self.prior)
+                w = np.sinh(da * np.arcsinh(xa) - ea)
+                shift, fac = _affine_profile(w, mu, s)
+                ba = ba * fac                          # column 0 of both designs is the intercept
+                ba[0] += shift
+                ta = ta.copy()
+                ta[0] += np.log(fac)
+                ba, ta, _ = fit_location_scale(w, X, W, max_iter=self.rs_iter, init=(ba, ta))
+                new = _warp_loglik(xa, X @ ba, np.exp(W @ ta), ea, da, self.prior) \
+                    - np.sum(W @ ta, axis=0)
+                keep = new >= ll[active]               # accept only improvements
+                idx = active[keep]
+                e[idx], d[idx] = ea[keep], da[keep]
+                beta[:, idx], theta[:, idx] = ba[:, keep], ta[:, keep]
+                gain = np.where(keep, new - ll[active], 0.0)
+                ll[idx] = new[keep]
+                active = active[gain > self.tol * n]
+                if not active.size:
+                    break
+            rounds = max(rounds, it + 1)
+            self.eps[cols], self.delta[cols] = e, d
+            ll_end += ll.sum()
+        self.loglik = (ll_start, ll_end)
+        if verbose:
+            print(f"    warp: {self.valid.size} features, log-likelihood {ll_start:.6g} -> {ll_end:.6g}, "
+                  f"up to {rounds} rounds ({time.time() - t0:.0f}s)")
         return self
 
     def _standardize(self, Y, cols):
@@ -1060,7 +1123,7 @@ def cross_validate(datas, kfold=10, seed=0, age_range=(0, np.inf), gpr=True,
 
 
 def train_test(train, test, adjust=None, correction='offset', age_range=(0, np.inf),
-               gpr=True, ensemble='gls', zmaps_out=False, **kw):
+               gpr=True, ensemble='gls', zmaps_out=False, warp_zmaps=False, **kw):
     """Train on one sample and predict another.
 
     adjust     : indices of the control subjects of the test sample
@@ -1075,6 +1138,9 @@ def train_test(train, test, adjust=None, correction='offset', age_range=(0, np.i
     zmaps_out  : also return voxel/vertex-wise z-maps at chronological age, adapted
                  to the test site with the controls (at their estimated brain ages
                  for 'agefree')
+    warp_zmaps : warp the data of the z-maps (Warp), independently of the warp of
+                 the brain age models (kw 'warp'); a warp fitted for the brain age
+                 models is reused
     """
     _check_same_subjects(test)
     n = test[0].n
@@ -1115,10 +1181,15 @@ def train_test(train, test, adjust=None, correction='offset', age_range=(0, np.i
             r['gpr_ba'] = correct_age(r['gpr'], age, ctrl, gpr_post) - age
         if zmaps_out:
             zc = None if correction == 'none' else adjust
-            r['zmaps'] = zmaps(dtr.subset(sel), dte, zc,
+            dsel = dtr.subset(sel)
+            warper = None
+            if warp_zmaps:
+                warper = est.warper or Warp(est.df_mu, est.df_sigma).fit(
+                    dsel.Y, dsel.age, dsel.male, dsel.site)
+            r['zmaps'] = zmaps(dsel, dte, zc,
                                out['age'][adjust] if correction == 'agefree' else None,
                                est.df_mu, est.df_sigma, est.parcellation, est.atlas_dir,
-                               warper=est.warper)
+                               warper=warper)
         res.append(r)
         print(f"  {dte.name}: {time.time() - t0:.1f}s", flush=True)
     if adjust is None:
@@ -1268,8 +1339,11 @@ def main(argv=None):
     p.add_argument('--zmaps', action='store_true',
                    help="also save voxel/vertex-wise z-maps of the test subjects")
     p.add_argument('--warp', action='store_true',
-                   help="warp every voxel/vertex (sinh-arcsinh, fitted jointly with a "
-                        "voxel-wise normative model) for non-Gaussian data")
+                   help="warp every voxel/vertex for the brain age models (sinh-arcsinh, "
+                        "fitted jointly with a voxel-wise normative model)")
+    p.add_argument('--warp-zmaps', action='store_true',
+                   help="warp the data of the --zmaps (recommended: calibrated tails of "
+                        "the z-maps); independent of --warp, but shares its fit")
     p.add_argument('--kfold', type=int, default=10, help="folds if no --test (default 10)")
     p.add_argument('--parcellation', action='store_true', help="lobe-wise brain age")
     p.add_argument('--pca', type=int, default=100,
@@ -1308,11 +1382,13 @@ def main(argv=None):
                 p.error(f"--test-male has {male.size} values for {test[0].n} test subjects.")
             test = [replace(d, male=male, has_male=True) for d in test]
         adjust = _parse_index(a.adjust, test[0].n) if a.adjust else None
+        if a.warp_zmaps and not a.zmaps:
+            print("--warp-zmaps has no effect without --zmaps.")
         out = train_test(train, test, adjust, a.correction, a.age_range, not a.no_gpr,
-                         a.ensemble, a.zmaps, **kw)
+                         a.ensemble, a.zmaps, a.warp_zmaps, **kw)
     else:
-        if a.zmaps:
-            print("--zmaps is only available with --test.")
+        if a.zmaps or a.warp_zmaps:
+            print("--zmaps and --warp-zmaps are only available with --test.")
         out = cross_validate(train, a.kfold, a.seed, a.age_range, not a.no_gpr,
                              a.ensemble, **kw)
     save_results(out, a.out)
