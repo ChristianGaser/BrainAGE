@@ -223,7 +223,8 @@ def lobe_atlas(d: Data, atlas_dir=HERE):
 # ---------------------------------------------------------------------------
 
 class NaturalSpline:
-    """Natural cubic spline basis of age without intercept (ESL eq. 5.4-5.5).
+    """Natural cubic spline basis of age without intercept (The Elements of 
+    Statistical Learning eq. 5.4-5.5).
 
     Knots at quantiles of the training ages; the basis is linear beyond the
     boundary knots, so the model extrapolates linearly.  df=1 is linear.
@@ -472,10 +473,12 @@ def fit_warp(x, mu, sd, eps, delta, n_iter=20, prior=9.0, tol=1e-6):
         h_ee = np.sum(-c2s - r * w + sech2, axis=0) - 1 / prior
         h_ed = np.sum(ua * c2s + r * w * ua - ua * sech2, axis=0)
         h_dd = np.sum(ua ** 2 * (-c2s - r * w + sech2), axis=0) - n / de ** 2
+        
         # derivatives with respect to (eps, eta = log delta)
         g_h = de * g_d - eta[active] / prior
         h_eh = de * h_ed
         h_hh = de ** 2 * h_dd + de * g_d - 1 / prior
+        
         # make the Hessian negative definite (Levenberg damping), then Newton step
         lam_max = 0.5 * (h_ee + h_hh) + np.sqrt(0.25 * (h_ee - h_hh) ** 2 + h_eh ** 2)
         damp = np.maximum(0, lam_max + 1e-6 * n)
@@ -1082,6 +1085,7 @@ def cross_validate(datas, kfold=10, seed=0, age_range=(0, np.inf), gpr=True,
     ok = _valid_age(d0, age_range)
     if np.sum(~ok):
         print(f"{int(np.sum(~ok))} subject(s) excluded (invalid age or outside age range).")
+        
     # age-stratified folds with random tie-breaking
     rng = np.random.default_rng(seed)
     idx = np.flatnonzero(ok)
@@ -1224,6 +1228,7 @@ def _summarize(datas, res, age, ok, ensemble, gpr, fold=None, ctrl=None, gpr_lab
         for r in res:
             rows.append((f"GPR {r['name']} ({gpr_label})",
                          metrics(r['gpr_ba'][ctrl], age[ctrl])))
+                         
         # ensemble of the trend-corrected GPR predictions (as BA_gpr_ui.m)
         P = np.column_stack([r['gpr_ba'] + age for r in res])
         for m in ('mae', 'gls'):
@@ -1260,6 +1265,7 @@ def _summarize(datas, res, age, ok, ensemble, gpr, fold=None, ctrl=None, gpr_lab
         BrainAGE_regional_ensemble=e['regional'] - age[:, None] if e['regions'] else np.zeros((len(age), 0)),
         ind_control=ctrl + 1)
     out['BrainAGE'] = out['PredictedAge'] - age[:, None]
+    
     # non-aging deviation (at brain age) and total deviation (at chronological age),
     # normal scores; the ensemble is the mean over models
     for key, name in (('deviation', 'Deviation'), ('deviation_age', 'Deviation_age')):
