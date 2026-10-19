@@ -1310,6 +1310,13 @@ else
   ensemble_method = 5;
 end
 
+if any(abs(ensemble_method) == [3 6])
+  warning('BA_gpr:circularEnsemble', ['Ensemble %d estimates the model weights to maximize the group ' ...
+    'difference or correlation in the same data. Statistics of that difference or correlation ' ...
+    'computed on these BrainAGE values are circular and their p-values are invalid ' ...
+    '(simulated type I error 0.69-1.00 at nominal 0.05).'], ensemble_method);
+end
+
 if (nargin < 4) && (ensemble_method == 4)
   fprintf('For GPR ensemble method you have to define 5 arguments.\n');
   return;
