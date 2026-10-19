@@ -346,17 +346,32 @@ if isfield(D,'eqdist') && isfield(D.eqdist,'tol')
     if ~isfield(D.eqdist,'range'), D.eqdist.range = [D.age_range; 0 1]'; end
 
     % create sample for age/sex for test as reference and train as source
-    if ~isfield(D,'male_test'), D.male_test = round(rand(size(D.age_test))); end
     ind_groups = [];
     for o = 1:numel(D.ind_groups)
       ind_groups = [ind_groups; D.ind_groups{o}];
     end
-    sample_ref = [D.age_test(ind_groups) D.male_test(ind_groups)];
-    sample_src = [age_train male_train];
+
+    % Match by age and sex if sex is known for test and training data,
+    % otherwise by age only. (Formerly a missing D.male_test was replaced by
+    % random values, so the sex matching was done against noise.)
+    has_sex = isfield(D,'male_test') && ~isempty(D.male_test) && ...
+              ~any(isnan(D.male_test(ind_groups))) && ~any(isnan(male_train));
+    if has_sex
+      cols = 1:2;
+      sample_ref = [D.age_test(ind_groups) D.male_test(ind_groups)];
+      sample_src = [age_train male_train];
+    else
+      cols = 1;
+      warning('BA_gpr:eqdistNoSex', ['Sex of test or training data is not defined: ' ...
+        'training data are matched to the test data by age only.']);
+      sample_ref = D.age_test(ind_groups);
+      sample_src = age_train;
+    end
+    eqopts = BA_gpr_eqdist_opts(D.eqdist, cols);
 
     % find assignement using Hungarian method
     fprintf('Estimate assignement to match distribution of train data to test data\n');
-    [~, sel] = BA_equalize_distribution(sample_ref, sample_src, D.eqdist);
+    [~, sel] = BA_equalize_distribution(sample_ref, sample_src, eqopts);
     fprintf('Selected %d of %d data sets for training after age/sex equalization.\n',numel(sel),numel(age_train));
 
     % save selection to skip time consuming assignement for next runs
@@ -477,3 +492,23 @@ if ~isempty(D.nuisance)
   PredictedAge = PredictedAge - G*Beta;
 end
 
+%_______________________________________________________________________
+function opts = BA_gpr_eqdist_opts(eqdist, cols)
+% Restrict the eqdist options (range, tol, weight) to the matched columns
+% (1 = age, 2 = sex). range is 2 x m (min; max) as in BA_equalize_distribution.
+
+opts = eqdist;
+if isfield(opts,'sel'), opts = rmfield(opts,'sel'); end
+for f = {'tol','weight'}
+  if isfield(opts,f{1}) && numel(opts.(f{1})) >= max(cols)
+    v = opts.(f{1});
+    opts.(f{1}) = v(cols);
+  end
+end
+if isfield(opts,'range')
+  R = opts.range;
+  if size(R,1) ~= 2, R = R'; end
+  if size(R,2) >= max(cols)
+    opts.range = R(:,cols);
+  end
+end
