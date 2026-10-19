@@ -403,7 +403,9 @@ end
 % run k-fold validation if no data field is given or validation with k_fold is defined
 if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) && ~isfield(D,'run_kfold')
   
-  if isfield(D,'ensemble') && (abs(D.ensemble(1)) == 3 || abs(D.ensemble(1)) == 6) && numel(D.ind_groups) < 1
+  % The condition was "numel(D.ind_groups) < 1", which never holds when groups
+  % are defined, so the check never fired for the case its message describes.
+  if isfield(D,'ensemble') && (abs(D.ensemble(1)) == 3 || abs(D.ensemble(1)) == 6) && numel(D.ind_groups) > 1
     error('Ensemble model 3 or 6 cannot be used within k-fold validation with more than one group.');
   end
 
@@ -526,6 +528,10 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       % call BA_gpr_ui for this fold
       % remove k_fold to prevent BA_gpr_ui from redirecting back to BA_gpr_kfold_ui
       D_fold = D;
+      % No trend correction inside the fold: it would be estimated on the
+      % test subjects of this fold (ind_adjust = ind_test) and evaluated on
+      % them. The correction is applied after all folds, cross-fitted.
+      D_fold.trend_degree = -1;
       if isfield(D_fold, 'k_fold'), D_fold = rmfield(D_fold, 'k_fold'); end
       if isfield(D_fold, 'n_fold'), D_fold = rmfield(D_fold, 'n_fold'); end
       % use scalar ensemble for per-fold computation (actual ensemble is applied after k-fold)
@@ -569,6 +575,15 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
   
   D.ind_adjust = ind_adjust; % rescue original ind_adjust
   D.age_test = age; % set age_test so it is available after return
+
+  % trend correction of every single model before the ensemble (formerly done
+  % inside each fold on the fold's own test subjects)
+  if D.trend_ensemble && D.trend_degree >= 0 && size(BA_all,2) > 1
+    for i = 1:size(BA_all,2)
+      BA_all(:,i,:) = reshape(crossfit_trend_correction(squeeze(BA_all(:,i,:)),age,D, ...
+        ind_test_array,ind_train_array,0), size(BA_all(:,i,:)));
+    end
+  end
   
   % go through different ensembles if defined
   D0 = D;
@@ -586,7 +601,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       if D.trend_degree >= 0 && D0.ensemble == 4
         BA_all1 = BA_all;
         for i = 1:size(BA_all,2)
-          BA_all1(:,i) = apply_trend_correction(BA_all(:,i),age,D,0);
+          BA_all1(:,i) = crossfit_trend_correction(BA_all(:,i),age,D,ind_test_array,ind_train_array,0);
         end
         [~, PredictedAge_unsorted_weighted] = ensemble_models(BA_all1,age,D0,ind_test_array,ind_train_array);
       else
@@ -604,7 +619,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
         for i=co
           D1 = D;
           D1.trend_method = i;
-          BA_unsorted_weighted1 = apply_trend_correction(BA_unsorted_weighted0,age,D1);
+          BA_unsorted_weighted1 = crossfit_trend_correction(BA_unsorted_weighted0,age,D1,ind_test_array,ind_train_array);
           fprintf('\n%s:\n',str_trend{i+1});
 
           MAE_weighted = mean(abs(BA_unsorted_weighted1));
@@ -619,7 +634,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
       
       % apply final trend correction to weighted model
       if D.trend_degree >= 0
-        [BA_unsorted_weighted0,~,Adjustment] = apply_trend_correction(BA_unsorted_weighted0,age,D);
+        [BA_unsorted_weighted0,Adjustment] = crossfit_trend_correction(BA_unsorted_weighted0,age,D,ind_test_array,ind_train_array);
       end
 
       MAE_weighted = mean(abs(BA_unsorted_weighted0));
@@ -645,7 +660,7 @@ if ((~isfield(D,'data') || ~isfield(D,'train_array')) || isfield(D,'k_fold')) &&
 
     % apply trend correction
     if D.trend_degree >= 0
-      [BA_unsorted_weighted,~,Adjustment] = apply_trend_correction(BA_unsorted_weighted,age,D);
+      [BA_unsorted_weighted,Adjustment] = crossfit_trend_correction(BA_unsorted_weighted,age,D,ind_test_array,ind_train_array);
     end
     
     % only print performance for single model
@@ -757,6 +772,13 @@ if isfield(D,'ensemble')
   ensemble_method = D.ensemble;
 else
   ensemble_method = 5;
+end
+
+if any(abs(ensemble_method) == [3 6])
+  warning('BA_gpr:circularEnsemble', ['Ensemble %d estimates the model weights to maximize the group ' ...
+    'difference or correlation in the same data. Statistics of that difference or correlation ' ...
+    'computed on these BrainAGE values are circular and their p-values are invalid ' ...
+    '(simulated type I error 0.69-1.00 at nominal 0.05).'], ensemble_method);
 end
 
 if (nargin < 4) && (ensemble_method == 4)
@@ -1040,10 +1062,110 @@ case {6, -6}   % use GLM estimation for mean tissue to maximize group difference
   
 end
 
+% Cross-fit the weights of ensembles 0, 1 and 5: estimate them on the
+% training folds and apply them to the test fold, so that the reported
+% BrainAGE/MAE of a subject does not depend on weights fitted to that subject.
+if nargin >= 5 && ~isempty(ind_test_array) && any(ensemble_method == [0 1 5]) && ...
+    size(BA_corrected,1) == numel(age)
+  [BA_cf, covered] = ensemble_crossfit(ensemble_method, BA_corrected, ...
+      PredictedAge_corrected, age, D, ind_test_array, ind_train_array);
+  BA_weighted(covered,:) = BA_cf(covered,:);
+end
+
 if isfield(D,'define_cov')
   PredictedAge_weighted = BA_weighted;
 else
   PredictedAge_weighted = BA_weighted + age;
+end
+
+%-------------------------------------------------------------------------------
+function [BA_cf, covered] = ensemble_crossfit(method, BA_corrected, PredictedAge_corrected, age, D, ind_test_array, ind_train_array)
+%-------------------------------------------------------------------------------
+% Ensemble weights (or model choice) estimated on the training folds and
+% applied to the test fold. Ensembles 0 and 1 use the training subjects in
+% D.ind_adjust, ensemble 5 all training subjects (as the in-sample version
+% uses all subjects). Only the first complete partition is used.
+
+n  = size(BA_corrected,1);
+nr = size(BA_corrected,3);
+BA_cf   = nan(n,nr);
+covered = false(n,1);
+
+for j = 1:numel(ind_test_array)
+  te = ind_test_array{j}(:);
+  tr = ind_train_array{j}(:);
+  if isempty(te) || any(covered(te)), continue; end
+  if method == 5
+    fit = tr;
+  else
+    fit = tr(ismember(tr,D.ind_adjust));
+  end
+  if isempty(fit), continue; end
+  for r = 1:nr
+    switch method
+    case 0
+      [~, mn_ind] = min(mean(abs(BA_corrected(fit,:,r)),1));
+      BA_cf(te,r) = PredictedAge_corrected(te,mn_ind,r) - age(te);
+    case 1
+      Beta = pinv(PredictedAge_corrected(fit,:,r))*age(fit);
+      BA_cf(te,r) = PredictedAge_corrected(te,:,r)*Beta - age(te);
+    case 5
+      weight = 1./mean(abs(BA_corrected(fit,:,r)),1).^2;
+      weight = weight/mean(weight);
+      BA_cf(te,r) = mean(PredictedAge_corrected(te,:,r).*weight,2) - age(te);
+    end
+  end
+  covered(te) = true;
+end
+
+%-------------------------------------------------------------------------------
+function [BA_cf, Adjustment] = crossfit_trend_correction(BrainAGE, age, D, ind_test_array, ind_train_array, verbose)
+%-------------------------------------------------------------------------------
+% Cross-fitted trend (age-bias) correction for k-fold validation: for every
+% test fold the trend is estimated on the subjects of D.ind_adjust in the
+% training folds only, and applied to the test fold. Estimating it on the
+% evaluated subjects themselves made the reported MAE optimistic (about 12%
+% for a single model at n = 100, simulated). Subjects that are not in any
+% test fold keep the full-sample correction. Adjustment is the per-subject
+% difference before - after correction for every site, as returned by
+% apply_trend_correction.
+
+if nargin < 6, verbose = 1; end
+
+% apply_trend_correction returns before assigning Adjustment if no
+% correction is requested, so handle that case here
+if D.trend_degree < 0 || ~D.trend_method
+  BA_cf = BrainAGE;
+  Adjustment = {};
+  return
+end
+
+[BA_cf, ~, Adjustment] = apply_trend_correction(BrainAGE, age, D, verbose);
+if isempty(ind_test_array)
+  return
+end
+
+covered = false(size(BrainAGE,1),1);
+for j = 1:numel(ind_test_array)
+  te = ind_test_array{j}(:);
+  if isempty(te) || any(covered(te)), continue; end
+  Dj = D;
+  Dj.ind_adjust = D.ind_adjust(ismember(D.ind_adjust, ind_train_array{j}));
+  if isempty(Dj.ind_adjust), continue; end
+  tmp = apply_trend_correction(BrainAGE, age, Dj, 0);
+  BA_cf(te,:) = tmp(te,:);
+  covered(te) = true;
+end
+
+if isempty(D.site_adjust)
+  site_adjust = ones(size(BrainAGE,1),1);
+else
+  site_adjust = D.site_adjust;
+end
+Adjustment = cell(max(site_adjust),1);
+for i = 1:max(site_adjust)
+  ind_site = find(site_adjust == i);
+  Adjustment{i} = BrainAGE(ind_site,:) - BA_cf(ind_site,:);
 end
 
 %-------------------------------------------------------------------------------
