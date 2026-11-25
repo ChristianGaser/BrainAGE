@@ -296,7 +296,11 @@ if ~isfield(D,'n_data')
     n_train = numel(ind_plus)-1;
     
     for l = 1:n_train
-      load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
+      if isempty(D.res_array{1})
+        load([D.smooth_array{1} seg_array '_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
+      else
+        load([D.smooth_array{1} seg_array '_' D.res_array{1} 'mm_' D.data(ind_plus(l)+1:ind_plus(l+1)-1) D.relnumber],'age');
+      end
       age0 = [age0; age];
       if isfield(D,'comcat') && isscalar(D.comcat) && D.comcat == 1
         D_comcat = [D_comcat; l*ones(size(age))];
